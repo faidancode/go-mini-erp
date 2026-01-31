@@ -48,42 +48,34 @@ func (q *Queries) AssignRoleToUser(ctx context.Context, arg AssignRoleToUserPara
 	return i, err
 }
 
-const checkUserMenuAccess = `-- name: CheckUserMenuAccess :one
-SELECT 
-    COALESCE(MAX(rm.can_read::int), 0) > 0 as can_read,
-    COALESCE(MAX(rm.can_create::int), 0) > 0 as can_create,
-    COALESCE(MAX(rm.can_update::int), 0) > 0 as can_update,
-    COALESCE(MAX(rm.can_delete::int), 0) > 0 as can_delete
-FROM role_menus rm
-INNER JOIN user_roles ur ON rm.role_id = ur.role_id
-INNER JOIN menus m ON rm.menu_id = m.id
-WHERE ur.user_id = $1 
-    AND m.code = $2
-    AND m.is_active = true
+const checkEmailExists = `-- name: CheckEmailExists :one
+SELECT EXISTS(
+    SELECT 1 FROM users 
+    WHERE email = $1 
+    AND deleted_at IS NULL
+) as exists
 `
 
-type CheckUserMenuAccessParams struct {
-	UserID uuid.UUID `json:"user_id"`
-	Code   string    `json:"code"`
+func (q *Queries) CheckEmailExists(ctx context.Context, email string) (bool, error) {
+	row := q.queryRow(ctx, q.checkEmailExistsStmt, checkEmailExists, email)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
-type CheckUserMenuAccessRow struct {
-	CanRead   bool `json:"can_read"`
-	CanCreate bool `json:"can_create"`
-	CanUpdate bool `json:"can_update"`
-	CanDelete bool `json:"can_delete"`
-}
+const checkUsernameExists = `-- name: CheckUsernameExists :one
+SELECT EXISTS(
+    SELECT 1 FROM users 
+    WHERE username = $1 
+    AND deleted_at IS NULL
+) as exists
+`
 
-func (q *Queries) CheckUserMenuAccess(ctx context.Context, arg CheckUserMenuAccessParams) (CheckUserMenuAccessRow, error) {
-	row := q.queryRow(ctx, q.checkUserMenuAccessStmt, checkUserMenuAccess, arg.UserID, arg.Code)
-	var i CheckUserMenuAccessRow
-	err := row.Scan(
-		&i.CanRead,
-		&i.CanCreate,
-		&i.CanUpdate,
-		&i.CanDelete,
-	)
-	return i, err
+func (q *Queries) CheckUsernameExists(ctx context.Context, username string) (bool, error) {
+	row := q.queryRow(ctx, q.checkUsernameExistsStmt, checkUsernameExists, username)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const createUser = `-- name: CreateUser :one
@@ -136,109 +128,48 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	return i, err
 }
 
-const getMenusByUserID = `-- name: GetMenusByUserID :many
-SELECT DISTINCT
-    m.id,
-    m.parent_id,
-    m.code,
-    m.name,
-    m.path,
-    m.icon,
-    m.sort_order,
-    rm.can_create,
-    rm.can_read,
-    rm.can_update,
-    rm.can_delete
-FROM menus m
-INNER JOIN role_menus rm ON m.id = rm.menu_id
-INNER JOIN user_roles ur ON rm.role_id = ur.role_id
-WHERE ur.user_id = $1 
-    AND m.is_active = true
-ORDER BY m.sort_order, m.name
-`
-
-type GetMenusByUserIDRow struct {
-	ID        uuid.UUID      `json:"id"`
-	ParentID  uuid.NullUUID  `json:"parent_id"`
-	Code      string         `json:"code"`
-	Name      string         `json:"name"`
-	Path      sql.NullString `json:"path"`
-	Icon      sql.NullString `json:"icon"`
-	SortOrder sql.NullInt32  `json:"sort_order"`
-	CanCreate sql.NullBool   `json:"can_create"`
-	CanRead   sql.NullBool   `json:"can_read"`
-	CanUpdate sql.NullBool   `json:"can_update"`
-	CanDelete sql.NullBool   `json:"can_delete"`
-}
-
-func (q *Queries) GetMenusByUserID(ctx context.Context, userID uuid.UUID) ([]GetMenusByUserIDRow, error) {
-	rows, err := q.query(ctx, q.getMenusByUserIDStmt, getMenusByUserID, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetMenusByUserIDRow
-	for rows.Next() {
-		var i GetMenusByUserIDRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.ParentID,
-			&i.Code,
-			&i.Name,
-			&i.Path,
-			&i.Icon,
-			&i.SortOrder,
-			&i.CanCreate,
-			&i.CanRead,
-			&i.CanUpdate,
-			&i.CanDelete,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getRoleByCode = `-- name: GetRoleByCode :one
+const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT 
     id,
-    code,
-    name,
-    description,
+    username,
+    email,
+    password_hash,
+    full_name,
     is_active,
-    created_at
-FROM roles
-WHERE code = $1
-    AND is_active = true
+    last_login_at,
+    created_at,
+    updated_at
+FROM users
+WHERE email = $1 
+    AND deleted_at IS NULL
 LIMIT 1
 `
 
-type GetRoleByCodeRow struct {
-	ID          uuid.UUID      `json:"id"`
-	Code        string         `json:"code"`
-	Name        string         `json:"name"`
-	Description sql.NullString `json:"description"`
-	IsActive    sql.NullBool   `json:"is_active"`
-	CreatedAt   sql.NullTime   `json:"created_at"`
+type GetUserByEmailRow struct {
+	ID           uuid.UUID    `json:"id"`
+	Username     string       `json:"username"`
+	Email        string       `json:"email"`
+	PasswordHash string       `json:"password_hash"`
+	FullName     string       `json:"full_name"`
+	IsActive     sql.NullBool `json:"is_active"`
+	LastLoginAt  sql.NullTime `json:"last_login_at"`
+	CreatedAt    sql.NullTime `json:"created_at"`
+	UpdatedAt    sql.NullTime `json:"updated_at"`
 }
 
-func (q *Queries) GetRoleByCode(ctx context.Context, code string) (GetRoleByCodeRow, error) {
-	row := q.queryRow(ctx, q.getRoleByCodeStmt, getRoleByCode, code)
-	var i GetRoleByCodeRow
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
+	row := q.queryRow(ctx, q.getUserByEmailStmt, getUserByEmail, email)
+	var i GetUserByEmailRow
 	err := row.Scan(
 		&i.ID,
-		&i.Code,
-		&i.Name,
-		&i.Description,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FullName,
 		&i.IsActive,
+		&i.LastLoginAt,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -332,6 +263,77 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (GetUs
 	return i, err
 }
 
+const getUserMenus = `-- name: GetUserMenus :many
+SELECT DISTINCT
+    m.id,
+    m.parent_id,
+    m.code,
+    m.name,
+    m.path,
+    m.icon,
+    m.sort_order,
+    MAX(rm.can_create::int) as can_create,
+    MAX(rm.can_read::int) as can_read,
+    MAX(rm.can_update::int) as can_update,
+    MAX(rm.can_delete::int) as can_delete
+FROM menus m
+INNER JOIN role_menus rm ON m.id = rm.menu_id
+INNER JOIN user_roles ur ON rm.role_id = ur.role_id
+WHERE ur.user_id = $1 
+    AND m.is_active = true
+GROUP BY m.id, m.parent_id, m.code, m.name, m.path, m.icon, m.sort_order
+ORDER BY m.sort_order, m.name
+`
+
+type GetUserMenusRow struct {
+	ID        uuid.UUID      `json:"id"`
+	ParentID  uuid.NullUUID  `json:"parent_id"`
+	Code      string         `json:"code"`
+	Name      string         `json:"name"`
+	Path      sql.NullString `json:"path"`
+	Icon      sql.NullString `json:"icon"`
+	SortOrder sql.NullInt32  `json:"sort_order"`
+	CanCreate interface{}    `json:"can_create"`
+	CanRead   interface{}    `json:"can_read"`
+	CanUpdate interface{}    `json:"can_update"`
+	CanDelete interface{}    `json:"can_delete"`
+}
+
+func (q *Queries) GetUserMenus(ctx context.Context, userID uuid.UUID) ([]GetUserMenusRow, error) {
+	rows, err := q.query(ctx, q.getUserMenusStmt, getUserMenus, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserMenusRow
+	for rows.Next() {
+		var i GetUserMenusRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentID,
+			&i.Code,
+			&i.Name,
+			&i.Path,
+			&i.Icon,
+			&i.SortOrder,
+			&i.CanCreate,
+			&i.CanRead,
+			&i.CanUpdate,
+			&i.CanDelete,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserRoles = `-- name: GetUserRoles :many
 SELECT 
     r.id,
@@ -369,62 +371,6 @@ func (q *Queries) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]GetUser
 			&i.Name,
 			&i.Description,
 			&i.AssignedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listActiveUsers = `-- name: ListActiveUsers :many
-SELECT 
-    id,
-    username,
-    email,
-    full_name,
-    is_active,
-    last_login_at,
-    created_at
-FROM users
-WHERE deleted_at IS NULL
-    AND ($1::boolean IS NULL OR is_active = $1)
-ORDER BY full_name
-`
-
-type ListActiveUsersRow struct {
-	ID          uuid.UUID    `json:"id"`
-	Username    string       `json:"username"`
-	Email       string       `json:"email"`
-	FullName    string       `json:"full_name"`
-	IsActive    sql.NullBool `json:"is_active"`
-	LastLoginAt sql.NullTime `json:"last_login_at"`
-	CreatedAt   sql.NullTime `json:"created_at"`
-}
-
-func (q *Queries) ListActiveUsers(ctx context.Context, dollar_1 bool) ([]ListActiveUsersRow, error) {
-	rows, err := q.query(ctx, q.listActiveUsersStmt, listActiveUsers, dollar_1)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListActiveUsersRow
-	for rows.Next() {
-		var i ListActiveUsersRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Username,
-			&i.Email,
-			&i.FullName,
-			&i.IsActive,
-			&i.LastLoginAt,
-			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

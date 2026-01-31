@@ -27,8 +27,11 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.assignRoleToUserStmt, err = db.PrepareContext(ctx, assignRoleToUser); err != nil {
 		return nil, fmt.Errorf("error preparing query AssignRoleToUser: %w", err)
 	}
-	if q.checkUserMenuAccessStmt, err = db.PrepareContext(ctx, checkUserMenuAccess); err != nil {
-		return nil, fmt.Errorf("error preparing query CheckUserMenuAccess: %w", err)
+	if q.checkEmailExistsStmt, err = db.PrepareContext(ctx, checkEmailExists); err != nil {
+		return nil, fmt.Errorf("error preparing query CheckEmailExists: %w", err)
+	}
+	if q.checkUsernameExistsStmt, err = db.PrepareContext(ctx, checkUsernameExists); err != nil {
+		return nil, fmt.Errorf("error preparing query CheckUsernameExists: %w", err)
 	}
 	if q.createCategoryStmt, err = db.PrepareContext(ctx, createCategory); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateCategory: %w", err)
@@ -123,9 +126,6 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getGrossProfitSummaryStmt, err = db.PrepareContext(ctx, getGrossProfitSummary); err != nil {
 		return nil, fmt.Errorf("error preparing query GetGrossProfitSummary: %w", err)
 	}
-	if q.getMenusByUserIDStmt, err = db.PrepareContext(ctx, getMenusByUserID); err != nil {
-		return nil, fmt.Errorf("error preparing query GetMenusByUserID: %w", err)
-	}
 	if q.getPaymentByIDStmt, err = db.PrepareContext(ctx, getPaymentByID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetPaymentByID: %w", err)
 	}
@@ -146,9 +146,6 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getQuotationLinesStmt, err = db.PrepareContext(ctx, getQuotationLines); err != nil {
 		return nil, fmt.Errorf("error preparing query GetQuotationLines: %w", err)
-	}
-	if q.getRoleByCodeStmt, err = db.PrepareContext(ctx, getRoleByCode); err != nil {
-		return nil, fmt.Errorf("error preparing query GetRoleByCode: %w", err)
 	}
 	if q.getSalesOrderByIDStmt, err = db.PrepareContext(ctx, getSalesOrderByID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetSalesOrderByID: %w", err)
@@ -171,11 +168,17 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getSupplierByIDStmt, err = db.PrepareContext(ctx, getSupplierByID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetSupplierByID: %w", err)
 	}
+	if q.getUserByEmailStmt, err = db.PrepareContext(ctx, getUserByEmail); err != nil {
+		return nil, fmt.Errorf("error preparing query GetUserByEmail: %w", err)
+	}
 	if q.getUserByIDStmt, err = db.PrepareContext(ctx, getUserByID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUserByID: %w", err)
 	}
 	if q.getUserByUsernameStmt, err = db.PrepareContext(ctx, getUserByUsername); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUserByUsername: %w", err)
+	}
+	if q.getUserMenusStmt, err = db.PrepareContext(ctx, getUserMenus); err != nil {
+		return nil, fmt.Errorf("error preparing query GetUserMenus: %w", err)
 	}
 	if q.getUserRolesStmt, err = db.PrepareContext(ctx, getUserRoles); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUserRoles: %w", err)
@@ -197,9 +200,6 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.listActiveUoMStmt, err = db.PrepareContext(ctx, listActiveUoM); err != nil {
 		return nil, fmt.Errorf("error preparing query ListActiveUoM: %w", err)
-	}
-	if q.listActiveUsersStmt, err = db.PrepareContext(ctx, listActiveUsers); err != nil {
-		return nil, fmt.Errorf("error preparing query ListActiveUsers: %w", err)
 	}
 	if q.listCustomerInvoicesStmt, err = db.PrepareContext(ctx, listCustomerInvoices); err != nil {
 		return nil, fmt.Errorf("error preparing query ListCustomerInvoices: %w", err)
@@ -280,9 +280,14 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing assignRoleToUserStmt: %w", cerr)
 		}
 	}
-	if q.checkUserMenuAccessStmt != nil {
-		if cerr := q.checkUserMenuAccessStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing checkUserMenuAccessStmt: %w", cerr)
+	if q.checkEmailExistsStmt != nil {
+		if cerr := q.checkEmailExistsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing checkEmailExistsStmt: %w", cerr)
+		}
+	}
+	if q.checkUsernameExistsStmt != nil {
+		if cerr := q.checkUsernameExistsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing checkUsernameExistsStmt: %w", cerr)
 		}
 	}
 	if q.createCategoryStmt != nil {
@@ -440,11 +445,6 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getGrossProfitSummaryStmt: %w", cerr)
 		}
 	}
-	if q.getMenusByUserIDStmt != nil {
-		if cerr := q.getMenusByUserIDStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getMenusByUserIDStmt: %w", cerr)
-		}
-	}
 	if q.getPaymentByIDStmt != nil {
 		if cerr := q.getPaymentByIDStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getPaymentByIDStmt: %w", cerr)
@@ -478,11 +478,6 @@ func (q *Queries) Close() error {
 	if q.getQuotationLinesStmt != nil {
 		if cerr := q.getQuotationLinesStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getQuotationLinesStmt: %w", cerr)
-		}
-	}
-	if q.getRoleByCodeStmt != nil {
-		if cerr := q.getRoleByCodeStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getRoleByCodeStmt: %w", cerr)
 		}
 	}
 	if q.getSalesOrderByIDStmt != nil {
@@ -520,6 +515,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getSupplierByIDStmt: %w", cerr)
 		}
 	}
+	if q.getUserByEmailStmt != nil {
+		if cerr := q.getUserByEmailStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getUserByEmailStmt: %w", cerr)
+		}
+	}
 	if q.getUserByIDStmt != nil {
 		if cerr := q.getUserByIDStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getUserByIDStmt: %w", cerr)
@@ -528,6 +528,11 @@ func (q *Queries) Close() error {
 	if q.getUserByUsernameStmt != nil {
 		if cerr := q.getUserByUsernameStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getUserByUsernameStmt: %w", cerr)
+		}
+	}
+	if q.getUserMenusStmt != nil {
+		if cerr := q.getUserMenusStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getUserMenusStmt: %w", cerr)
 		}
 	}
 	if q.getUserRolesStmt != nil {
@@ -563,11 +568,6 @@ func (q *Queries) Close() error {
 	if q.listActiveUoMStmt != nil {
 		if cerr := q.listActiveUoMStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listActiveUoMStmt: %w", cerr)
-		}
-	}
-	if q.listActiveUsersStmt != nil {
-		if cerr := q.listActiveUsersStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing listActiveUsersStmt: %w", cerr)
 		}
 	}
 	if q.listCustomerInvoicesStmt != nil {
@@ -725,7 +725,8 @@ type Queries struct {
 	db                                  DBTX
 	tx                                  *sql.Tx
 	assignRoleToUserStmt                *sql.Stmt
-	checkUserMenuAccessStmt             *sql.Stmt
+	checkEmailExistsStmt                *sql.Stmt
+	checkUsernameExistsStmt             *sql.Stmt
 	createCategoryStmt                  *sql.Stmt
 	createCustomerStmt                  *sql.Stmt
 	createCustomerInvoiceStmt           *sql.Stmt
@@ -757,7 +758,6 @@ type Queries struct {
 	getGoodsReceiptsByPOStmt            *sql.Stmt
 	getGrossProfitByProductStmt         *sql.Stmt
 	getGrossProfitSummaryStmt           *sql.Stmt
-	getMenusByUserIDStmt                *sql.Stmt
 	getPaymentByIDStmt                  *sql.Stmt
 	getProductByCodeStmt                *sql.Stmt
 	getProductByIDStmt                  *sql.Stmt
@@ -765,7 +765,6 @@ type Queries struct {
 	getPurchaseOrderLinesStmt           *sql.Stmt
 	getQuotationByIDStmt                *sql.Stmt
 	getQuotationLinesStmt               *sql.Stmt
-	getRoleByCodeStmt                   *sql.Stmt
 	getSalesOrderByIDStmt               *sql.Stmt
 	getSalesOrderLinesStmt              *sql.Stmt
 	getStockAdjustmentByIDStmt          *sql.Stmt
@@ -773,8 +772,10 @@ type Queries struct {
 	getStockBalanceStmt                 *sql.Stmt
 	getSupplierBillByIDStmt             *sql.Stmt
 	getSupplierByIDStmt                 *sql.Stmt
+	getUserByEmailStmt                  *sql.Stmt
 	getUserByIDStmt                     *sql.Stmt
 	getUserByUsernameStmt               *sql.Stmt
+	getUserMenusStmt                    *sql.Stmt
 	getUserRolesStmt                    *sql.Stmt
 	listActiveCategoriesStmt            *sql.Stmt
 	listActiveCustomersStmt             *sql.Stmt
@@ -782,7 +783,6 @@ type Queries struct {
 	listActiveStockLocationsStmt        *sql.Stmt
 	listActiveSuppliersStmt             *sql.Stmt
 	listActiveUoMStmt                   *sql.Stmt
-	listActiveUsersStmt                 *sql.Stmt
 	listCustomerInvoicesStmt            *sql.Stmt
 	listPaymentsStmt                    *sql.Stmt
 	listPurchaseOrdersStmt              *sql.Stmt
@@ -813,7 +813,8 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		db:                                  tx,
 		tx:                                  tx,
 		assignRoleToUserStmt:                q.assignRoleToUserStmt,
-		checkUserMenuAccessStmt:             q.checkUserMenuAccessStmt,
+		checkEmailExistsStmt:                q.checkEmailExistsStmt,
+		checkUsernameExistsStmt:             q.checkUsernameExistsStmt,
 		createCategoryStmt:                  q.createCategoryStmt,
 		createCustomerStmt:                  q.createCustomerStmt,
 		createCustomerInvoiceStmt:           q.createCustomerInvoiceStmt,
@@ -845,7 +846,6 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getGoodsReceiptsByPOStmt:            q.getGoodsReceiptsByPOStmt,
 		getGrossProfitByProductStmt:         q.getGrossProfitByProductStmt,
 		getGrossProfitSummaryStmt:           q.getGrossProfitSummaryStmt,
-		getMenusByUserIDStmt:                q.getMenusByUserIDStmt,
 		getPaymentByIDStmt:                  q.getPaymentByIDStmt,
 		getProductByCodeStmt:                q.getProductByCodeStmt,
 		getProductByIDStmt:                  q.getProductByIDStmt,
@@ -853,7 +853,6 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getPurchaseOrderLinesStmt:           q.getPurchaseOrderLinesStmt,
 		getQuotationByIDStmt:                q.getQuotationByIDStmt,
 		getQuotationLinesStmt:               q.getQuotationLinesStmt,
-		getRoleByCodeStmt:                   q.getRoleByCodeStmt,
 		getSalesOrderByIDStmt:               q.getSalesOrderByIDStmt,
 		getSalesOrderLinesStmt:              q.getSalesOrderLinesStmt,
 		getStockAdjustmentByIDStmt:          q.getStockAdjustmentByIDStmt,
@@ -861,8 +860,10 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getStockBalanceStmt:                 q.getStockBalanceStmt,
 		getSupplierBillByIDStmt:             q.getSupplierBillByIDStmt,
 		getSupplierByIDStmt:                 q.getSupplierByIDStmt,
+		getUserByEmailStmt:                  q.getUserByEmailStmt,
 		getUserByIDStmt:                     q.getUserByIDStmt,
 		getUserByUsernameStmt:               q.getUserByUsernameStmt,
+		getUserMenusStmt:                    q.getUserMenusStmt,
 		getUserRolesStmt:                    q.getUserRolesStmt,
 		listActiveCategoriesStmt:            q.listActiveCategoriesStmt,
 		listActiveCustomersStmt:             q.listActiveCustomersStmt,
@@ -870,7 +871,6 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		listActiveStockLocationsStmt:        q.listActiveStockLocationsStmt,
 		listActiveSuppliersStmt:             q.listActiveSuppliersStmt,
 		listActiveUoMStmt:                   q.listActiveUoMStmt,
-		listActiveUsersStmt:                 q.listActiveUsersStmt,
 		listCustomerInvoicesStmt:            q.listCustomerInvoicesStmt,
 		listPaymentsStmt:                    q.listPaymentsStmt,
 		listPurchaseOrdersStmt:              q.listPurchaseOrdersStmt,
