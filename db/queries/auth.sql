@@ -77,7 +77,7 @@ WHERE ur.user_id = $1
 ORDER BY r.name;
 
 -- name: GetUserMenus :many
-SELECT DISTINCT
+SELECT 
     m.id,
     m.parent_id,
     m.code,
@@ -85,10 +85,11 @@ SELECT DISTINCT
     m.path,
     m.icon,
     m.sort_order,
-    MAX(rm.can_create::int) as can_create,
-    MAX(rm.can_read::int) as can_read,
-    MAX(rm.can_update::int) as can_update,
-    MAX(rm.can_delete::int) as can_delete
+    -- Cast hasil MAX ke boolean agar SQLC men-generate tipe bool
+    (MAX(rm.can_create::int) > 0)::BOOLEAN as can_create,
+    (MAX(rm.can_read::int) > 0)::BOOLEAN as can_read,
+    (MAX(rm.can_update::int) > 0)::BOOLEAN as can_update,
+    (MAX(rm.can_delete::int) > 0)::BOOLEAN as can_delete
 FROM menus m
 INNER JOIN role_menus rm ON m.id = rm.menu_id
 INNER JOIN user_roles ur ON rm.role_id = ur.role_id

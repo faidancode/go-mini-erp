@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -12,44 +10,49 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5/pgxpool" // Gunakan pgxpool untuk performa lebih baik
+	"github.com/joho/godotenv"
 
 	"go-mini-erp/internal/auth"
+	dbgen "go-mini-erp/internal/shared/database/sqlc"
 	"go-mini-erp/internal/shared/middleware"
 )
 
 func main() {
-	// Load environment variables
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		dbURL = "postgres://user:password@localhost:5432/mini_erp?sslmode=disable"
+	if err := godotenv.Load(); err != nil {
+		log.Println("Warning: .env file not found")
 	}
 
-	// Connect to database
-	db, err := sql.Open("pgx", dbURL)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// 1. Database Connection (Menggunakan pgxpool)
+	dbUrl := os.Getenv("DB_URL")
+	if dbUrl == "" {
+		log.Fatal("DB_URL environment variable is required")
+	}
+
+	dbPool, err := pgxpool.New(ctx, dbUrl)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatal("Cannot connect to database pool:", err)
 	}
-	defer db.Close()
+	defer dbPool.Close()
 
-	// Test connection
-	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+	// Ping database untuk memastikan koneksi aktif
+	if err := dbPool.Ping(ctx); err != nil {
+		log.Fatal("Database ping failed:", err)
 	}
 
-	log.Println("✅ Database connected successfully")
+	// sqlc generator sekarang menggunakan dbPool
+	queries := dbgen.New(dbPool)
 
-	// Initialize sqlc queries
-	queries := dbgen.New(db)
-
-	// Setup Gin
+	// 2. Gin Setup
 	if os.Getenv("GIN_MODE") == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	router := gin.Default()
-
-	// Global middleware
+	router := gin.New()
+	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 	router.Use(middleware.CORSMiddleware())
 
@@ -57,60 +60,55 @@ func main() {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "ok",
-			"time":   time.Now(),
+			"time":   time.Now().Format(time.RFC3339),
 		})
 	})
+	jwtManager := auth.NewJWTManager(os.Getenv("JWT_SECRET"))
 
-	// API v1 group
+	// 3. Routes Grouping
 	v1 := router.Group("/api/v1")
 	{
-		// Initialize auth module
+		// Sesuai requirement Anda: sertakan penempatan folder/logic per module
 		authRepo := auth.NewRepository(queries)
-		authService := auth.NewService(authRepo, db)
+		authService := auth.NewService(authRepo, queries, jwtManager)
 		authHandler := auth.NewHandler(authService)
 		authHandler.RegisterRoutes(v1)
-
-		// TODO: Initialize other modules
-		// inventoryHandler.RegisterRoutes(v1)
-		// procurementHandler.RegisterRoutes(v1)
-		// salesHandler.RegisterRoutes(v1)
-		// financeHandler.RegisterRoutes(v1)
 	}
 
-	// Server configuration
+	// 4. HTTP Server Setup
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%s", port),
+	server := &http.Server{
+		Addr:         ":" + port,
 		Handler:      router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
-	// Graceful shutdown
+	// 5. Start Server with Graceful Shutdown
 	go func() {
-		log.Printf("🚀 Server starting on port %s", port)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+		log.Printf("🚀 Server running on :%s", port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Listen error: %v", err)
 		}
 	}()
 
-	// Wait for interrupt signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	// Menunggu signal interrupt
+	<-ctx.Done()
 
 	log.Println("⏳ Shutting down server...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Memberikan waktu 5 detik untuk menyelesaikan request yang sedang berjalan
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	log.Println("✅ Server exited")
+	log.Println("✅ Server exited gracefully")
 }

@@ -3,14 +3,13 @@
 //   sqlc v1.30.0
 // source: sales.sql
 
-package dbgen
+package db
 
 import (
 	"context"
-	"database/sql"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createCustomer = `-- name: CreateCustomer :one
@@ -34,25 +33,25 @@ RETURNING id, code, name, created_at
 type CreateCustomerParams struct {
 	Code          string         `json:"code"`
 	Name          string         `json:"name"`
-	ContactPerson sql.NullString `json:"contact_person"`
-	Email         sql.NullString `json:"email"`
-	Phone         sql.NullString `json:"phone"`
-	Address       sql.NullString `json:"address"`
-	TaxID         sql.NullString `json:"tax_id"`
-	CreditLimit   sql.NullString `json:"credit_limit"`
-	PaymentTerms  sql.NullInt32  `json:"payment_terms"`
-	IsActive      sql.NullBool   `json:"is_active"`
+	ContactPerson *string        `json:"contact_person"`
+	Email         *string        `json:"email"`
+	Phone         *string        `json:"phone"`
+	Address       *string        `json:"address"`
+	TaxID         *string        `json:"tax_id"`
+	CreditLimit   pgtype.Numeric `json:"credit_limit"`
+	PaymentTerms  *int32         `json:"payment_terms"`
+	IsActive      *bool          `json:"is_active"`
 }
 
 type CreateCustomerRow struct {
-	ID        uuid.UUID    `json:"id"`
-	Code      string       `json:"code"`
-	Name      string       `json:"name"`
-	CreatedAt sql.NullTime `json:"created_at"`
+	ID        uuid.UUID          `json:"id"`
+	Code      string             `json:"code"`
+	Name      string             `json:"name"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) (CreateCustomerRow, error) {
-	row := q.queryRow(ctx, q.createCustomerStmt, createCustomer,
+	row := q.db.QueryRow(ctx, createCustomer,
 		arg.Code,
 		arg.Name,
 		arg.ContactPerson,
@@ -94,28 +93,28 @@ RETURNING id, invoice_number, customer_id, invoice_date, due_date, total_amount,
 type CreateCustomerInvoiceParams struct {
 	InvoiceNumber string         `json:"invoice_number"`
 	CustomerID    uuid.UUID      `json:"customer_id"`
-	SoID          uuid.NullUUID  `json:"so_id"`
-	InvoiceDate   time.Time      `json:"invoice_date"`
-	DueDate       time.Time      `json:"due_date"`
-	TotalAmount   string         `json:"total_amount"`
-	Status        sql.NullString `json:"status"`
-	Notes         sql.NullString `json:"notes"`
-	CreatedBy     uuid.NullUUID  `json:"created_by"`
+	SoID          pgtype.UUID    `json:"so_id"`
+	InvoiceDate   pgtype.Date    `json:"invoice_date"`
+	DueDate       pgtype.Date    `json:"due_date"`
+	TotalAmount   pgtype.Numeric `json:"total_amount"`
+	Status        *string        `json:"status"`
+	Notes         *string        `json:"notes"`
+	CreatedBy     pgtype.UUID    `json:"created_by"`
 }
 
 type CreateCustomerInvoiceRow struct {
-	ID            uuid.UUID      `json:"id"`
-	InvoiceNumber string         `json:"invoice_number"`
-	CustomerID    uuid.UUID      `json:"customer_id"`
-	InvoiceDate   time.Time      `json:"invoice_date"`
-	DueDate       time.Time      `json:"due_date"`
-	TotalAmount   string         `json:"total_amount"`
-	Status        sql.NullString `json:"status"`
-	CreatedAt     sql.NullTime   `json:"created_at"`
+	ID            uuid.UUID          `json:"id"`
+	InvoiceNumber string             `json:"invoice_number"`
+	CustomerID    uuid.UUID          `json:"customer_id"`
+	InvoiceDate   pgtype.Date        `json:"invoice_date"`
+	DueDate       pgtype.Date        `json:"due_date"`
+	TotalAmount   pgtype.Numeric     `json:"total_amount"`
+	Status        *string            `json:"status"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) CreateCustomerInvoice(ctx context.Context, arg CreateCustomerInvoiceParams) (CreateCustomerInvoiceRow, error) {
-	row := q.queryRow(ctx, q.createCustomerInvoiceStmt, createCustomerInvoice,
+	row := q.db.QueryRow(ctx, createCustomerInvoice,
 		arg.InvoiceNumber,
 		arg.CustomerID,
 		arg.SoID,
@@ -159,25 +158,25 @@ RETURNING id, quote_number, customer_id, quote_date, status, created_at
 type CreateQuotationParams struct {
 	QuoteNumber string         `json:"quote_number"`
 	CustomerID  uuid.UUID      `json:"customer_id"`
-	QuoteDate   time.Time      `json:"quote_date"`
-	ValidUntil  sql.NullTime   `json:"valid_until"`
-	Status      sql.NullString `json:"status"`
-	TotalAmount sql.NullString `json:"total_amount"`
-	Notes       sql.NullString `json:"notes"`
-	CreatedBy   uuid.NullUUID  `json:"created_by"`
+	QuoteDate   pgtype.Date    `json:"quote_date"`
+	ValidUntil  pgtype.Date    `json:"valid_until"`
+	Status      *string        `json:"status"`
+	TotalAmount pgtype.Numeric `json:"total_amount"`
+	Notes       *string        `json:"notes"`
+	CreatedBy   pgtype.UUID    `json:"created_by"`
 }
 
 type CreateQuotationRow struct {
-	ID          uuid.UUID      `json:"id"`
-	QuoteNumber string         `json:"quote_number"`
-	CustomerID  uuid.UUID      `json:"customer_id"`
-	QuoteDate   time.Time      `json:"quote_date"`
-	Status      sql.NullString `json:"status"`
-	CreatedAt   sql.NullTime   `json:"created_at"`
+	ID          uuid.UUID          `json:"id"`
+	QuoteNumber string             `json:"quote_number"`
+	CustomerID  uuid.UUID          `json:"customer_id"`
+	QuoteDate   pgtype.Date        `json:"quote_date"`
+	Status      *string            `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) CreateQuotation(ctx context.Context, arg CreateQuotationParams) (CreateQuotationRow, error) {
-	row := q.queryRow(ctx, q.createQuotationStmt, createQuotation,
+	row := q.db.QueryRow(ctx, createQuotation,
 		arg.QuoteNumber,
 		arg.CustomerID,
 		arg.QuoteDate,
@@ -216,24 +215,24 @@ RETURNING id, quote_id, product_id, quantity, unit_price, subtotal, line_number
 type CreateQuotationLineParams struct {
 	QuoteID    uuid.UUID      `json:"quote_id"`
 	ProductID  uuid.UUID      `json:"product_id"`
-	Quantity   string         `json:"quantity"`
-	UnitPrice  string         `json:"unit_price"`
+	Quantity   pgtype.Numeric `json:"quantity"`
+	UnitPrice  pgtype.Numeric `json:"unit_price"`
 	LineNumber int32          `json:"line_number"`
-	Notes      sql.NullString `json:"notes"`
+	Notes      *string        `json:"notes"`
 }
 
 type CreateQuotationLineRow struct {
 	ID         uuid.UUID      `json:"id"`
 	QuoteID    uuid.UUID      `json:"quote_id"`
 	ProductID  uuid.UUID      `json:"product_id"`
-	Quantity   string         `json:"quantity"`
-	UnitPrice  string         `json:"unit_price"`
-	Subtotal   sql.NullString `json:"subtotal"`
+	Quantity   pgtype.Numeric `json:"quantity"`
+	UnitPrice  pgtype.Numeric `json:"unit_price"`
+	Subtotal   pgtype.Numeric `json:"subtotal"`
 	LineNumber int32          `json:"line_number"`
 }
 
 func (q *Queries) CreateQuotationLine(ctx context.Context, arg CreateQuotationLineParams) (CreateQuotationLineRow, error) {
-	row := q.queryRow(ctx, q.createQuotationLineStmt, createQuotationLine,
+	row := q.db.QueryRow(ctx, createQuotationLine,
 		arg.QuoteID,
 		arg.ProductID,
 		arg.Quantity,
@@ -274,26 +273,26 @@ RETURNING id, so_number, customer_id, order_date, status, created_at
 type CreateSalesOrderParams struct {
 	SoNumber     string         `json:"so_number"`
 	CustomerID   uuid.UUID      `json:"customer_id"`
-	QuoteID      uuid.NullUUID  `json:"quote_id"`
-	OrderDate    time.Time      `json:"order_date"`
-	DeliveryDate sql.NullTime   `json:"delivery_date"`
-	Status       sql.NullString `json:"status"`
-	TotalAmount  sql.NullString `json:"total_amount"`
-	Notes        sql.NullString `json:"notes"`
-	CreatedBy    uuid.NullUUID  `json:"created_by"`
+	QuoteID      pgtype.UUID    `json:"quote_id"`
+	OrderDate    pgtype.Date    `json:"order_date"`
+	DeliveryDate pgtype.Date    `json:"delivery_date"`
+	Status       *string        `json:"status"`
+	TotalAmount  pgtype.Numeric `json:"total_amount"`
+	Notes        *string        `json:"notes"`
+	CreatedBy    pgtype.UUID    `json:"created_by"`
 }
 
 type CreateSalesOrderRow struct {
-	ID         uuid.UUID      `json:"id"`
-	SoNumber   string         `json:"so_number"`
-	CustomerID uuid.UUID      `json:"customer_id"`
-	OrderDate  time.Time      `json:"order_date"`
-	Status     sql.NullString `json:"status"`
-	CreatedAt  sql.NullTime   `json:"created_at"`
+	ID         uuid.UUID          `json:"id"`
+	SoNumber   string             `json:"so_number"`
+	CustomerID uuid.UUID          `json:"customer_id"`
+	OrderDate  pgtype.Date        `json:"order_date"`
+	Status     *string            `json:"status"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) CreateSalesOrder(ctx context.Context, arg CreateSalesOrderParams) (CreateSalesOrderRow, error) {
-	row := q.queryRow(ctx, q.createSalesOrderStmt, createSalesOrder,
+	row := q.db.QueryRow(ctx, createSalesOrder,
 		arg.SoNumber,
 		arg.CustomerID,
 		arg.QuoteID,
@@ -333,24 +332,24 @@ RETURNING id, so_id, product_id, quantity, unit_price, subtotal, line_number
 type CreateSalesOrderLineParams struct {
 	SoID       uuid.UUID      `json:"so_id"`
 	ProductID  uuid.UUID      `json:"product_id"`
-	Quantity   string         `json:"quantity"`
-	UnitPrice  string         `json:"unit_price"`
+	Quantity   pgtype.Numeric `json:"quantity"`
+	UnitPrice  pgtype.Numeric `json:"unit_price"`
 	LineNumber int32          `json:"line_number"`
-	Notes      sql.NullString `json:"notes"`
+	Notes      *string        `json:"notes"`
 }
 
 type CreateSalesOrderLineRow struct {
 	ID         uuid.UUID      `json:"id"`
 	SoID       uuid.UUID      `json:"so_id"`
 	ProductID  uuid.UUID      `json:"product_id"`
-	Quantity   string         `json:"quantity"`
-	UnitPrice  string         `json:"unit_price"`
-	Subtotal   sql.NullString `json:"subtotal"`
+	Quantity   pgtype.Numeric `json:"quantity"`
+	UnitPrice  pgtype.Numeric `json:"unit_price"`
+	Subtotal   pgtype.Numeric `json:"subtotal"`
 	LineNumber int32          `json:"line_number"`
 }
 
 func (q *Queries) CreateSalesOrderLine(ctx context.Context, arg CreateSalesOrderLineParams) (CreateSalesOrderLineRow, error) {
-	row := q.queryRow(ctx, q.createSalesOrderLineStmt, createSalesOrderLine,
+	row := q.db.QueryRow(ctx, createSalesOrderLine,
 		arg.SoID,
 		arg.ProductID,
 		arg.Quantity,
@@ -393,23 +392,23 @@ LIMIT 1
 `
 
 type GetCustomerByIDRow struct {
-	ID            uuid.UUID      `json:"id"`
-	Code          string         `json:"code"`
-	Name          string         `json:"name"`
-	ContactPerson sql.NullString `json:"contact_person"`
-	Email         sql.NullString `json:"email"`
-	Phone         sql.NullString `json:"phone"`
-	Address       sql.NullString `json:"address"`
-	TaxID         sql.NullString `json:"tax_id"`
-	CreditLimit   sql.NullString `json:"credit_limit"`
-	PaymentTerms  sql.NullInt32  `json:"payment_terms"`
-	IsActive      sql.NullBool   `json:"is_active"`
-	CreatedAt     sql.NullTime   `json:"created_at"`
-	UpdatedAt     sql.NullTime   `json:"updated_at"`
+	ID            uuid.UUID          `json:"id"`
+	Code          string             `json:"code"`
+	Name          string             `json:"name"`
+	ContactPerson *string            `json:"contact_person"`
+	Email         *string            `json:"email"`
+	Phone         *string            `json:"phone"`
+	Address       *string            `json:"address"`
+	TaxID         *string            `json:"tax_id"`
+	CreditLimit   pgtype.Numeric     `json:"credit_limit"`
+	PaymentTerms  *int32             `json:"payment_terms"`
+	IsActive      *bool              `json:"is_active"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) GetCustomerByID(ctx context.Context, id uuid.UUID) (GetCustomerByIDRow, error) {
-	row := q.queryRow(ctx, q.getCustomerByIDStmt, getCustomerByID, id)
+	row := q.db.QueryRow(ctx, getCustomerByID, id)
 	var i GetCustomerByIDRow
 	err := row.Scan(
 		&i.ID,
@@ -450,22 +449,22 @@ LIMIT 1
 `
 
 type GetCustomerInvoiceByIDRow struct {
-	ID            uuid.UUID      `json:"id"`
-	InvoiceNumber string         `json:"invoice_number"`
-	CustomerID    uuid.UUID      `json:"customer_id"`
-	CustomerName  string         `json:"customer_name"`
-	SoID          uuid.NullUUID  `json:"so_id"`
-	InvoiceDate   time.Time      `json:"invoice_date"`
-	DueDate       time.Time      `json:"due_date"`
-	TotalAmount   string         `json:"total_amount"`
-	PaidAmount    sql.NullString `json:"paid_amount"`
-	Status        sql.NullString `json:"status"`
-	Notes         sql.NullString `json:"notes"`
-	CreatedAt     sql.NullTime   `json:"created_at"`
+	ID            uuid.UUID          `json:"id"`
+	InvoiceNumber string             `json:"invoice_number"`
+	CustomerID    uuid.UUID          `json:"customer_id"`
+	CustomerName  string             `json:"customer_name"`
+	SoID          pgtype.UUID        `json:"so_id"`
+	InvoiceDate   pgtype.Date        `json:"invoice_date"`
+	DueDate       pgtype.Date        `json:"due_date"`
+	TotalAmount   pgtype.Numeric     `json:"total_amount"`
+	PaidAmount    pgtype.Numeric     `json:"paid_amount"`
+	Status        *string            `json:"status"`
+	Notes         *string            `json:"notes"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) GetCustomerInvoiceByID(ctx context.Context, id uuid.UUID) (GetCustomerInvoiceByIDRow, error) {
-	row := q.queryRow(ctx, q.getCustomerInvoiceByIDStmt, getCustomerInvoiceByID, id)
+	row := q.db.QueryRow(ctx, getCustomerInvoiceByID, id)
 	var i GetCustomerInvoiceByIDRow
 	err := row.Scan(
 		&i.ID,
@@ -504,21 +503,21 @@ LIMIT 1
 `
 
 type GetQuotationByIDRow struct {
-	ID           uuid.UUID      `json:"id"`
-	QuoteNumber  string         `json:"quote_number"`
-	CustomerID   uuid.UUID      `json:"customer_id"`
-	CustomerName string         `json:"customer_name"`
-	QuoteDate    time.Time      `json:"quote_date"`
-	ValidUntil   sql.NullTime   `json:"valid_until"`
-	Status       sql.NullString `json:"status"`
-	TotalAmount  sql.NullString `json:"total_amount"`
-	Notes        sql.NullString `json:"notes"`
-	CreatedAt    sql.NullTime   `json:"created_at"`
-	UpdatedAt    sql.NullTime   `json:"updated_at"`
+	ID           uuid.UUID          `json:"id"`
+	QuoteNumber  string             `json:"quote_number"`
+	CustomerID   uuid.UUID          `json:"customer_id"`
+	CustomerName string             `json:"customer_name"`
+	QuoteDate    pgtype.Date        `json:"quote_date"`
+	ValidUntil   pgtype.Date        `json:"valid_until"`
+	Status       *string            `json:"status"`
+	TotalAmount  pgtype.Numeric     `json:"total_amount"`
+	Notes        *string            `json:"notes"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) GetQuotationByID(ctx context.Context, id uuid.UUID) (GetQuotationByIDRow, error) {
-	row := q.queryRow(ctx, q.getQuotationByIDStmt, getQuotationByID, id)
+	row := q.db.QueryRow(ctx, getQuotationByID, id)
 	var i GetQuotationByIDRow
 	err := row.Scan(
 		&i.ID,
@@ -560,15 +559,15 @@ type GetQuotationLinesRow struct {
 	ProductID   uuid.UUID      `json:"product_id"`
 	ProductCode string         `json:"product_code"`
 	ProductName string         `json:"product_name"`
-	Quantity    string         `json:"quantity"`
-	UnitPrice   string         `json:"unit_price"`
-	Subtotal    sql.NullString `json:"subtotal"`
+	Quantity    pgtype.Numeric `json:"quantity"`
+	UnitPrice   pgtype.Numeric `json:"unit_price"`
+	Subtotal    pgtype.Numeric `json:"subtotal"`
 	LineNumber  int32          `json:"line_number"`
-	Notes       sql.NullString `json:"notes"`
+	Notes       *string        `json:"notes"`
 }
 
 func (q *Queries) GetQuotationLines(ctx context.Context, quoteID uuid.UUID) ([]GetQuotationLinesRow, error) {
-	rows, err := q.query(ctx, q.getQuotationLinesStmt, getQuotationLines, quoteID)
+	rows, err := q.db.Query(ctx, getQuotationLines, quoteID)
 	if err != nil {
 		return nil, err
 	}
@@ -591,9 +590,6 @@ func (q *Queries) GetQuotationLines(ctx context.Context, quoteID uuid.UUID) ([]G
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -622,22 +618,22 @@ LIMIT 1
 `
 
 type GetSalesOrderByIDRow struct {
-	ID           uuid.UUID      `json:"id"`
-	SoNumber     string         `json:"so_number"`
-	CustomerID   uuid.UUID      `json:"customer_id"`
-	CustomerName string         `json:"customer_name"`
-	QuoteID      uuid.NullUUID  `json:"quote_id"`
-	OrderDate    time.Time      `json:"order_date"`
-	DeliveryDate sql.NullTime   `json:"delivery_date"`
-	Status       sql.NullString `json:"status"`
-	TotalAmount  sql.NullString `json:"total_amount"`
-	Notes        sql.NullString `json:"notes"`
-	CreatedAt    sql.NullTime   `json:"created_at"`
-	UpdatedAt    sql.NullTime   `json:"updated_at"`
+	ID           uuid.UUID          `json:"id"`
+	SoNumber     string             `json:"so_number"`
+	CustomerID   uuid.UUID          `json:"customer_id"`
+	CustomerName string             `json:"customer_name"`
+	QuoteID      pgtype.UUID        `json:"quote_id"`
+	OrderDate    pgtype.Date        `json:"order_date"`
+	DeliveryDate pgtype.Date        `json:"delivery_date"`
+	Status       *string            `json:"status"`
+	TotalAmount  pgtype.Numeric     `json:"total_amount"`
+	Notes        *string            `json:"notes"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) GetSalesOrderByID(ctx context.Context, id uuid.UUID) (GetSalesOrderByIDRow, error) {
-	row := q.queryRow(ctx, q.getSalesOrderByIDStmt, getSalesOrderByID, id)
+	row := q.db.QueryRow(ctx, getSalesOrderByID, id)
 	var i GetSalesOrderByIDRow
 	err := row.Scan(
 		&i.ID,
@@ -681,16 +677,16 @@ type GetSalesOrderLinesRow struct {
 	ProductID    uuid.UUID      `json:"product_id"`
 	ProductCode  string         `json:"product_code"`
 	ProductName  string         `json:"product_name"`
-	Quantity     string         `json:"quantity"`
-	UnitPrice    string         `json:"unit_price"`
-	Subtotal     sql.NullString `json:"subtotal"`
-	DeliveredQty sql.NullString `json:"delivered_qty"`
+	Quantity     pgtype.Numeric `json:"quantity"`
+	UnitPrice    pgtype.Numeric `json:"unit_price"`
+	Subtotal     pgtype.Numeric `json:"subtotal"`
+	DeliveredQty pgtype.Numeric `json:"delivered_qty"`
 	LineNumber   int32          `json:"line_number"`
-	Notes        sql.NullString `json:"notes"`
+	Notes        *string        `json:"notes"`
 }
 
 func (q *Queries) GetSalesOrderLines(ctx context.Context, soID uuid.UUID) ([]GetSalesOrderLinesRow, error) {
-	rows, err := q.query(ctx, q.getSalesOrderLinesStmt, getSalesOrderLines, soID)
+	rows, err := q.db.Query(ctx, getSalesOrderLines, soID)
 	if err != nil {
 		return nil, err
 	}
@@ -714,9 +710,6 @@ func (q *Queries) GetSalesOrderLines(ctx context.Context, soID uuid.UUID) ([]Get
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -745,16 +738,16 @@ type ListActiveCustomersRow struct {
 	ID            uuid.UUID      `json:"id"`
 	Code          string         `json:"code"`
 	Name          string         `json:"name"`
-	ContactPerson sql.NullString `json:"contact_person"`
-	Email         sql.NullString `json:"email"`
-	Phone         sql.NullString `json:"phone"`
-	CreditLimit   sql.NullString `json:"credit_limit"`
-	PaymentTerms  sql.NullInt32  `json:"payment_terms"`
-	IsActive      sql.NullBool   `json:"is_active"`
+	ContactPerson *string        `json:"contact_person"`
+	Email         *string        `json:"email"`
+	Phone         *string        `json:"phone"`
+	CreditLimit   pgtype.Numeric `json:"credit_limit"`
+	PaymentTerms  *int32         `json:"payment_terms"`
+	IsActive      *bool          `json:"is_active"`
 }
 
 func (q *Queries) ListActiveCustomers(ctx context.Context) ([]ListActiveCustomersRow, error) {
-	rows, err := q.query(ctx, q.listActiveCustomersStmt, listActiveCustomers)
+	rows, err := q.db.Query(ctx, listActiveCustomers)
 	if err != nil {
 		return nil, err
 	}
@@ -776,9 +769,6 @@ func (q *Queries) ListActiveCustomers(ctx context.Context) ([]ListActiveCustomer
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -815,21 +805,21 @@ type ListCustomerInvoicesParams struct {
 }
 
 type ListCustomerInvoicesRow struct {
-	ID            uuid.UUID      `json:"id"`
-	InvoiceNumber string         `json:"invoice_number"`
-	CustomerID    uuid.UUID      `json:"customer_id"`
-	CustomerName  string         `json:"customer_name"`
-	InvoiceDate   time.Time      `json:"invoice_date"`
-	DueDate       time.Time      `json:"due_date"`
-	TotalAmount   string         `json:"total_amount"`
-	PaidAmount    sql.NullString `json:"paid_amount"`
-	Outstanding   int32          `json:"outstanding"`
-	Status        sql.NullString `json:"status"`
-	CreatedAt     sql.NullTime   `json:"created_at"`
+	ID            uuid.UUID          `json:"id"`
+	InvoiceNumber string             `json:"invoice_number"`
+	CustomerID    uuid.UUID          `json:"customer_id"`
+	CustomerName  string             `json:"customer_name"`
+	InvoiceDate   pgtype.Date        `json:"invoice_date"`
+	DueDate       pgtype.Date        `json:"due_date"`
+	TotalAmount   pgtype.Numeric     `json:"total_amount"`
+	PaidAmount    pgtype.Numeric     `json:"paid_amount"`
+	Outstanding   int32              `json:"outstanding"`
+	Status        *string            `json:"status"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) ListCustomerInvoices(ctx context.Context, arg ListCustomerInvoicesParams) ([]ListCustomerInvoicesRow, error) {
-	rows, err := q.query(ctx, q.listCustomerInvoicesStmt, listCustomerInvoices,
+	rows, err := q.db.Query(ctx, listCustomerInvoices,
 		arg.Column1,
 		arg.Column2,
 		arg.Limit,
@@ -859,9 +849,6 @@ func (q *Queries) ListCustomerInvoices(ctx context.Context, arg ListCustomerInvo
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -890,28 +877,28 @@ LIMIT $5 OFFSET $6
 `
 
 type ListQuotationsParams struct {
-	Column1 uuid.UUID `json:"column_1"`
-	Column2 string    `json:"column_2"`
-	Column3 time.Time `json:"column_3"`
-	Column4 time.Time `json:"column_4"`
-	Limit   int32     `json:"limit"`
-	Offset  int32     `json:"offset"`
+	Column1 uuid.UUID   `json:"column_1"`
+	Column2 string      `json:"column_2"`
+	Column3 pgtype.Date `json:"column_3"`
+	Column4 pgtype.Date `json:"column_4"`
+	Limit   int32       `json:"limit"`
+	Offset  int32       `json:"offset"`
 }
 
 type ListQuotationsRow struct {
-	ID           uuid.UUID      `json:"id"`
-	QuoteNumber  string         `json:"quote_number"`
-	CustomerID   uuid.UUID      `json:"customer_id"`
-	CustomerName string         `json:"customer_name"`
-	QuoteDate    time.Time      `json:"quote_date"`
-	ValidUntil   sql.NullTime   `json:"valid_until"`
-	Status       sql.NullString `json:"status"`
-	TotalAmount  sql.NullString `json:"total_amount"`
-	CreatedAt    sql.NullTime   `json:"created_at"`
+	ID           uuid.UUID          `json:"id"`
+	QuoteNumber  string             `json:"quote_number"`
+	CustomerID   uuid.UUID          `json:"customer_id"`
+	CustomerName string             `json:"customer_name"`
+	QuoteDate    pgtype.Date        `json:"quote_date"`
+	ValidUntil   pgtype.Date        `json:"valid_until"`
+	Status       *string            `json:"status"`
+	TotalAmount  pgtype.Numeric     `json:"total_amount"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) ListQuotations(ctx context.Context, arg ListQuotationsParams) ([]ListQuotationsRow, error) {
-	rows, err := q.query(ctx, q.listQuotationsStmt, listQuotations,
+	rows, err := q.db.Query(ctx, listQuotations,
 		arg.Column1,
 		arg.Column2,
 		arg.Column3,
@@ -941,9 +928,6 @@ func (q *Queries) ListQuotations(ctx context.Context, arg ListQuotationsParams) 
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -972,28 +956,28 @@ LIMIT $5 OFFSET $6
 `
 
 type ListSalesOrdersParams struct {
-	Column1 uuid.UUID `json:"column_1"`
-	Column2 string    `json:"column_2"`
-	Column3 time.Time `json:"column_3"`
-	Column4 time.Time `json:"column_4"`
-	Limit   int32     `json:"limit"`
-	Offset  int32     `json:"offset"`
+	Column1 uuid.UUID   `json:"column_1"`
+	Column2 string      `json:"column_2"`
+	Column3 pgtype.Date `json:"column_3"`
+	Column4 pgtype.Date `json:"column_4"`
+	Limit   int32       `json:"limit"`
+	Offset  int32       `json:"offset"`
 }
 
 type ListSalesOrdersRow struct {
-	ID           uuid.UUID      `json:"id"`
-	SoNumber     string         `json:"so_number"`
-	CustomerID   uuid.UUID      `json:"customer_id"`
-	CustomerName string         `json:"customer_name"`
-	OrderDate    time.Time      `json:"order_date"`
-	DeliveryDate sql.NullTime   `json:"delivery_date"`
-	Status       sql.NullString `json:"status"`
-	TotalAmount  sql.NullString `json:"total_amount"`
-	CreatedAt    sql.NullTime   `json:"created_at"`
+	ID           uuid.UUID          `json:"id"`
+	SoNumber     string             `json:"so_number"`
+	CustomerID   uuid.UUID          `json:"customer_id"`
+	CustomerName string             `json:"customer_name"`
+	OrderDate    pgtype.Date        `json:"order_date"`
+	DeliveryDate pgtype.Date        `json:"delivery_date"`
+	Status       *string            `json:"status"`
+	TotalAmount  pgtype.Numeric     `json:"total_amount"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) ListSalesOrders(ctx context.Context, arg ListSalesOrdersParams) ([]ListSalesOrdersRow, error) {
-	rows, err := q.query(ctx, q.listSalesOrdersStmt, listSalesOrders,
+	rows, err := q.db.Query(ctx, listSalesOrders,
 		arg.Column1,
 		arg.Column2,
 		arg.Column3,
@@ -1023,9 +1007,6 @@ func (q *Queries) ListSalesOrders(ctx context.Context, arg ListSalesOrdersParams
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -1051,18 +1032,18 @@ WHERE id = $1
 type UpdateCustomerParams struct {
 	ID            uuid.UUID      `json:"id"`
 	Name          string         `json:"name"`
-	ContactPerson sql.NullString `json:"contact_person"`
-	Email         sql.NullString `json:"email"`
-	Phone         sql.NullString `json:"phone"`
-	Address       sql.NullString `json:"address"`
-	TaxID         sql.NullString `json:"tax_id"`
-	CreditLimit   sql.NullString `json:"credit_limit"`
-	PaymentTerms  sql.NullInt32  `json:"payment_terms"`
-	IsActive      sql.NullBool   `json:"is_active"`
+	ContactPerson *string        `json:"contact_person"`
+	Email         *string        `json:"email"`
+	Phone         *string        `json:"phone"`
+	Address       *string        `json:"address"`
+	TaxID         *string        `json:"tax_id"`
+	CreditLimit   pgtype.Numeric `json:"credit_limit"`
+	PaymentTerms  *int32         `json:"payment_terms"`
+	IsActive      *bool          `json:"is_active"`
 }
 
 func (q *Queries) UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) error {
-	_, err := q.exec(ctx, q.updateCustomerStmt, updateCustomer,
+	_, err := q.db.Exec(ctx, updateCustomer,
 		arg.ID,
 		arg.Name,
 		arg.ContactPerson,
@@ -1091,11 +1072,11 @@ WHERE id = $1
 
 type UpdateCustomerInvoicePaidAmountParams struct {
 	ID         uuid.UUID      `json:"id"`
-	PaidAmount sql.NullString `json:"paid_amount"`
+	PaidAmount pgtype.Numeric `json:"paid_amount"`
 }
 
 func (q *Queries) UpdateCustomerInvoicePaidAmount(ctx context.Context, arg UpdateCustomerInvoicePaidAmountParams) error {
-	_, err := q.exec(ctx, q.updateCustomerInvoicePaidAmountStmt, updateCustomerInvoicePaidAmount, arg.ID, arg.PaidAmount)
+	_, err := q.db.Exec(ctx, updateCustomerInvoicePaidAmount, arg.ID, arg.PaidAmount)
 	return err
 }
 
@@ -1107,12 +1088,12 @@ WHERE id = $1
 `
 
 type UpdateQuotationStatusParams struct {
-	ID     uuid.UUID      `json:"id"`
-	Status sql.NullString `json:"status"`
+	ID     uuid.UUID `json:"id"`
+	Status *string   `json:"status"`
 }
 
 func (q *Queries) UpdateQuotationStatus(ctx context.Context, arg UpdateQuotationStatusParams) error {
-	_, err := q.exec(ctx, q.updateQuotationStatusStmt, updateQuotationStatus, arg.ID, arg.Status)
+	_, err := q.db.Exec(ctx, updateQuotationStatus, arg.ID, arg.Status)
 	return err
 }
 
@@ -1124,11 +1105,11 @@ WHERE id = $1
 
 type UpdateSOLineDeliveredQtyParams struct {
 	ID           uuid.UUID      `json:"id"`
-	DeliveredQty sql.NullString `json:"delivered_qty"`
+	DeliveredQty pgtype.Numeric `json:"delivered_qty"`
 }
 
 func (q *Queries) UpdateSOLineDeliveredQty(ctx context.Context, arg UpdateSOLineDeliveredQtyParams) error {
-	_, err := q.exec(ctx, q.updateSOLineDeliveredQtyStmt, updateSOLineDeliveredQty, arg.ID, arg.DeliveredQty)
+	_, err := q.db.Exec(ctx, updateSOLineDeliveredQty, arg.ID, arg.DeliveredQty)
 	return err
 }
 
@@ -1140,11 +1121,11 @@ WHERE id = $1
 `
 
 type UpdateSalesOrderStatusParams struct {
-	ID     uuid.UUID      `json:"id"`
-	Status sql.NullString `json:"status"`
+	ID     uuid.UUID `json:"id"`
+	Status *string   `json:"status"`
 }
 
 func (q *Queries) UpdateSalesOrderStatus(ctx context.Context, arg UpdateSalesOrderStatusParams) error {
-	_, err := q.exec(ctx, q.updateSalesOrderStatusStmt, updateSalesOrderStatus, arg.ID, arg.Status)
+	_, err := q.db.Exec(ctx, updateSalesOrderStatus, arg.ID, arg.Status)
 	return err
 }

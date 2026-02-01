@@ -3,14 +3,13 @@
 //   sqlc v1.30.0
 // source: finance.sql
 
-package dbgen
+package db
 
 import (
 	"context"
-	"database/sql"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createPayment = `-- name: CreatePayment :one
@@ -37,27 +36,27 @@ type CreatePaymentParams struct {
 	PaymentType   string         `json:"payment_type"`
 	PartnerType   string         `json:"partner_type"`
 	PartnerID     uuid.UUID      `json:"partner_id"`
-	InvoiceID     uuid.NullUUID  `json:"invoice_id"`
-	PaymentDate   time.Time      `json:"payment_date"`
-	Amount        string         `json:"amount"`
-	PaymentMethod sql.NullString `json:"payment_method"`
-	Reference     sql.NullString `json:"reference"`
-	Notes         sql.NullString `json:"notes"`
-	CreatedBy     uuid.NullUUID  `json:"created_by"`
+	InvoiceID     pgtype.UUID    `json:"invoice_id"`
+	PaymentDate   pgtype.Date    `json:"payment_date"`
+	Amount        pgtype.Numeric `json:"amount"`
+	PaymentMethod *string        `json:"payment_method"`
+	Reference     *string        `json:"reference"`
+	Notes         *string        `json:"notes"`
+	CreatedBy     pgtype.UUID    `json:"created_by"`
 }
 
 type CreatePaymentRow struct {
-	ID            uuid.UUID    `json:"id"`
-	PaymentNumber string       `json:"payment_number"`
-	PaymentType   string       `json:"payment_type"`
-	PartnerID     uuid.UUID    `json:"partner_id"`
-	PaymentDate   time.Time    `json:"payment_date"`
-	Amount        string       `json:"amount"`
-	CreatedAt     sql.NullTime `json:"created_at"`
+	ID            uuid.UUID          `json:"id"`
+	PaymentNumber string             `json:"payment_number"`
+	PaymentType   string             `json:"payment_type"`
+	PartnerID     uuid.UUID          `json:"partner_id"`
+	PaymentDate   pgtype.Date        `json:"payment_date"`
+	Amount        pgtype.Numeric     `json:"amount"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) CreatePayment(ctx context.Context, arg CreatePaymentParams) (CreatePaymentRow, error) {
-	row := q.queryRow(ctx, q.createPaymentStmt, createPayment,
+	row := q.db.QueryRow(ctx, createPayment,
 		arg.PaymentNumber,
 		arg.PaymentType,
 		arg.PartnerType,
@@ -124,7 +123,7 @@ type GetAccountsPayableSummaryRow struct {
 }
 
 func (q *Queries) GetAccountsPayableSummary(ctx context.Context, dollar_1 uuid.UUID) ([]GetAccountsPayableSummaryRow, error) {
-	rows, err := q.query(ctx, q.getAccountsPayableSummaryStmt, getAccountsPayableSummary, dollar_1)
+	rows, err := q.db.Query(ctx, getAccountsPayableSummary, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -148,9 +147,6 @@ func (q *Queries) GetAccountsPayableSummary(ctx context.Context, dollar_1 uuid.U
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -199,7 +195,7 @@ type GetAccountsReceivableSummaryRow struct {
 }
 
 func (q *Queries) GetAccountsReceivableSummary(ctx context.Context, dollar_1 uuid.UUID) ([]GetAccountsReceivableSummaryRow, error) {
-	rows, err := q.query(ctx, q.getAccountsReceivableSummaryStmt, getAccountsReceivableSummary, dollar_1)
+	rows, err := q.db.Query(ctx, getAccountsReceivableSummary, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -223,9 +219,6 @@ func (q *Queries) GetAccountsReceivableSummary(ctx context.Context, dollar_1 uui
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -289,7 +282,7 @@ type GetAgingReceivablesRow struct {
 }
 
 func (q *Queries) GetAgingReceivables(ctx context.Context) ([]GetAgingReceivablesRow, error) {
-	rows, err := q.query(ctx, q.getAgingReceivablesStmt, getAgingReceivables)
+	rows, err := q.db.Query(ctx, getAgingReceivables)
 	if err != nil {
 		return nil, err
 	}
@@ -312,9 +305,6 @@ func (q *Queries) GetAgingReceivables(ctx context.Context) ([]GetAgingReceivable
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -334,18 +324,18 @@ WHERE payment_date >= $1 AND payment_date <= $2
 `
 
 type GetCashFlowSummaryParams struct {
-	PaymentDate   time.Time `json:"payment_date"`
-	PaymentDate_2 time.Time `json:"payment_date_2"`
+	PaymentDate   pgtype.Date `json:"payment_date"`
+	PaymentDate_2 pgtype.Date `json:"payment_date_2"`
 }
 
 type GetCashFlowSummaryRow struct {
-	CashIn      string `json:"cash_in"`
-	CashOut     string `json:"cash_out"`
-	NetCashFlow string `json:"net_cash_flow"`
+	CashIn      pgtype.Numeric `json:"cash_in"`
+	CashOut     pgtype.Numeric `json:"cash_out"`
+	NetCashFlow pgtype.Numeric `json:"net_cash_flow"`
 }
 
 func (q *Queries) GetCashFlowSummary(ctx context.Context, arg GetCashFlowSummaryParams) (GetCashFlowSummaryRow, error) {
-	row := q.queryRow(ctx, q.getCashFlowSummaryStmt, getCashFlowSummary, arg.PaymentDate, arg.PaymentDate_2)
+	row := q.db.QueryRow(ctx, getCashFlowSummary, arg.PaymentDate, arg.PaymentDate_2)
 	var i GetCashFlowSummaryRow
 	err := row.Scan(&i.CashIn, &i.CashOut, &i.NetCashFlow)
 	return i, err
@@ -380,27 +370,27 @@ LIMIT $4 OFFSET $5
 `
 
 type GetGrossProfitByProductParams struct {
-	Column1 time.Time `json:"column_1"`
-	Column2 time.Time `json:"column_2"`
-	Column3 uuid.UUID `json:"column_3"`
-	Limit   int32     `json:"limit"`
-	Offset  int32     `json:"offset"`
+	Column1 pgtype.Date `json:"column_1"`
+	Column2 pgtype.Date `json:"column_2"`
+	Column3 uuid.UUID   `json:"column_3"`
+	Limit   int32       `json:"limit"`
+	Offset  int32       `json:"offset"`
 }
 
 type GetGrossProfitByProductRow struct {
-	ProductID          uuid.UUID      `json:"product_id"`
-	ProductCode        string         `json:"product_code"`
-	ProductName        string         `json:"product_name"`
-	CategoryName       sql.NullString `json:"category_name"`
-	TotalQtySold       int64          `json:"total_qty_sold"`
-	TotalRevenue       int64          `json:"total_revenue"`
-	TotalCost          int64          `json:"total_cost"`
-	GrossProfit        int32          `json:"gross_profit"`
-	GrossMarginPercent int32          `json:"gross_margin_percent"`
+	ProductID          uuid.UUID `json:"product_id"`
+	ProductCode        string    `json:"product_code"`
+	ProductName        string    `json:"product_name"`
+	CategoryName       *string   `json:"category_name"`
+	TotalQtySold       int64     `json:"total_qty_sold"`
+	TotalRevenue       int64     `json:"total_revenue"`
+	TotalCost          int64     `json:"total_cost"`
+	GrossProfit        int32     `json:"gross_profit"`
+	GrossMarginPercent int32     `json:"gross_margin_percent"`
 }
 
 func (q *Queries) GetGrossProfitByProduct(ctx context.Context, arg GetGrossProfitByProductParams) ([]GetGrossProfitByProductRow, error) {
-	rows, err := q.query(ctx, q.getGrossProfitByProductStmt, getGrossProfitByProduct,
+	rows, err := q.db.Query(ctx, getGrossProfitByProduct,
 		arg.Column1,
 		arg.Column2,
 		arg.Column3,
@@ -429,9 +419,6 @@ func (q *Queries) GetGrossProfitByProduct(ctx context.Context, arg GetGrossProfi
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -458,8 +445,8 @@ WHERE so.status != 'cancelled'
 `
 
 type GetGrossProfitSummaryParams struct {
-	Column1 time.Time `json:"column_1"`
-	Column2 time.Time `json:"column_2"`
+	Column1 pgtype.Date `json:"column_1"`
+	Column2 pgtype.Date `json:"column_2"`
 }
 
 type GetGrossProfitSummaryRow struct {
@@ -471,7 +458,7 @@ type GetGrossProfitSummaryRow struct {
 }
 
 func (q *Queries) GetGrossProfitSummary(ctx context.Context, arg GetGrossProfitSummaryParams) (GetGrossProfitSummaryRow, error) {
-	row := q.queryRow(ctx, q.getGrossProfitSummaryStmt, getGrossProfitSummary, arg.Column1, arg.Column2)
+	row := q.db.QueryRow(ctx, getGrossProfitSummary, arg.Column1, arg.Column2)
 	var i GetGrossProfitSummaryRow
 	err := row.Scan(
 		&i.TotalOrders,
@@ -503,22 +490,22 @@ LIMIT 1
 `
 
 type GetPaymentByIDRow struct {
-	ID            uuid.UUID      `json:"id"`
-	PaymentNumber string         `json:"payment_number"`
-	PaymentType   string         `json:"payment_type"`
-	PartnerType   string         `json:"partner_type"`
-	PartnerID     uuid.UUID      `json:"partner_id"`
-	InvoiceID     uuid.NullUUID  `json:"invoice_id"`
-	PaymentDate   time.Time      `json:"payment_date"`
-	Amount        string         `json:"amount"`
-	PaymentMethod sql.NullString `json:"payment_method"`
-	Reference     sql.NullString `json:"reference"`
-	Notes         sql.NullString `json:"notes"`
-	CreatedAt     sql.NullTime   `json:"created_at"`
+	ID            uuid.UUID          `json:"id"`
+	PaymentNumber string             `json:"payment_number"`
+	PaymentType   string             `json:"payment_type"`
+	PartnerType   string             `json:"partner_type"`
+	PartnerID     uuid.UUID          `json:"partner_id"`
+	InvoiceID     pgtype.UUID        `json:"invoice_id"`
+	PaymentDate   pgtype.Date        `json:"payment_date"`
+	Amount        pgtype.Numeric     `json:"amount"`
+	PaymentMethod *string            `json:"payment_method"`
+	Reference     *string            `json:"reference"`
+	Notes         *string            `json:"notes"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) GetPaymentByID(ctx context.Context, id uuid.UUID) (GetPaymentByIDRow, error) {
-	row := q.queryRow(ctx, q.getPaymentByIDStmt, getPaymentByID, id)
+	row := q.db.QueryRow(ctx, getPaymentByID, id)
 	var i GetPaymentByIDRow
 	err := row.Scan(
 		&i.ID,
@@ -566,31 +553,31 @@ LIMIT $6 OFFSET $7
 `
 
 type ListPaymentsParams struct {
-	Column1 string    `json:"column_1"`
-	Column2 string    `json:"column_2"`
-	Column3 uuid.UUID `json:"column_3"`
-	Column4 time.Time `json:"column_4"`
-	Column5 time.Time `json:"column_5"`
-	Limit   int32     `json:"limit"`
-	Offset  int32     `json:"offset"`
+	Column1 string      `json:"column_1"`
+	Column2 string      `json:"column_2"`
+	Column3 uuid.UUID   `json:"column_3"`
+	Column4 pgtype.Date `json:"column_4"`
+	Column5 pgtype.Date `json:"column_5"`
+	Limit   int32       `json:"limit"`
+	Offset  int32       `json:"offset"`
 }
 
 type ListPaymentsRow struct {
-	ID            uuid.UUID      `json:"id"`
-	PaymentNumber string         `json:"payment_number"`
-	PaymentType   string         `json:"payment_type"`
-	PartnerType   string         `json:"partner_type"`
-	PartnerID     uuid.UUID      `json:"partner_id"`
-	PartnerName   interface{}    `json:"partner_name"`
-	PaymentDate   time.Time      `json:"payment_date"`
-	Amount        string         `json:"amount"`
-	PaymentMethod sql.NullString `json:"payment_method"`
-	Reference     sql.NullString `json:"reference"`
-	CreatedAt     sql.NullTime   `json:"created_at"`
+	ID            uuid.UUID          `json:"id"`
+	PaymentNumber string             `json:"payment_number"`
+	PaymentType   string             `json:"payment_type"`
+	PartnerType   string             `json:"partner_type"`
+	PartnerID     uuid.UUID          `json:"partner_id"`
+	PartnerName   interface{}        `json:"partner_name"`
+	PaymentDate   pgtype.Date        `json:"payment_date"`
+	Amount        pgtype.Numeric     `json:"amount"`
+	PaymentMethod *string            `json:"payment_method"`
+	Reference     *string            `json:"reference"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) ListPayments(ctx context.Context, arg ListPaymentsParams) ([]ListPaymentsRow, error) {
-	rows, err := q.query(ctx, q.listPaymentsStmt, listPayments,
+	rows, err := q.db.Query(ctx, listPayments,
 		arg.Column1,
 		arg.Column2,
 		arg.Column3,
@@ -622,9 +609,6 @@ func (q *Queries) ListPayments(ctx context.Context, arg ListPaymentsParams) ([]L
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

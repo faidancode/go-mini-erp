@@ -3,14 +3,13 @@
 //   sqlc v1.30.0
 // source: inventory.sql
 
-package dbgen
+package db
 
 import (
 	"context"
-	"database/sql"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createCategory = `-- name: CreateCategory :one
@@ -27,22 +26,22 @@ RETURNING id, code, name, created_at
 `
 
 type CreateCategoryParams struct {
-	Code        string         `json:"code"`
-	Name        string         `json:"name"`
-	Description sql.NullString `json:"description"`
-	ParentID    uuid.NullUUID  `json:"parent_id"`
-	IsActive    sql.NullBool   `json:"is_active"`
+	Code        string      `json:"code"`
+	Name        string      `json:"name"`
+	Description *string     `json:"description"`
+	ParentID    pgtype.UUID `json:"parent_id"`
+	IsActive    *bool       `json:"is_active"`
 }
 
 type CreateCategoryRow struct {
-	ID        uuid.UUID    `json:"id"`
-	Code      string       `json:"code"`
-	Name      string       `json:"name"`
-	CreatedAt sql.NullTime `json:"created_at"`
+	ID        uuid.UUID          `json:"id"`
+	Code      string             `json:"code"`
+	Name      string             `json:"name"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) (CreateCategoryRow, error) {
-	row := q.queryRow(ctx, q.createCategoryStmt, createCategory,
+	row := q.db.QueryRow(ctx, createCategory,
 		arg.Code,
 		arg.Name,
 		arg.Description,
@@ -81,26 +80,26 @@ RETURNING id, code, name, created_at
 type CreateProductParams struct {
 	Code        string         `json:"code"`
 	Name        string         `json:"name"`
-	Description sql.NullString `json:"description"`
-	CategoryID  uuid.NullUUID  `json:"category_id"`
+	Description *string        `json:"description"`
+	CategoryID  pgtype.UUID    `json:"category_id"`
 	UomID       uuid.UUID      `json:"uom_id"`
-	ProductType sql.NullString `json:"product_type"`
-	CostPrice   sql.NullString `json:"cost_price"`
-	SalePrice   sql.NullString `json:"sale_price"`
-	MinStock    sql.NullString `json:"min_stock"`
-	MaxStock    sql.NullString `json:"max_stock"`
-	IsActive    sql.NullBool   `json:"is_active"`
+	ProductType *string        `json:"product_type"`
+	CostPrice   pgtype.Numeric `json:"cost_price"`
+	SalePrice   pgtype.Numeric `json:"sale_price"`
+	MinStock    pgtype.Numeric `json:"min_stock"`
+	MaxStock    pgtype.Numeric `json:"max_stock"`
+	IsActive    *bool          `json:"is_active"`
 }
 
 type CreateProductRow struct {
-	ID        uuid.UUID    `json:"id"`
-	Code      string       `json:"code"`
-	Name      string       `json:"name"`
-	CreatedAt sql.NullTime `json:"created_at"`
+	ID        uuid.UUID          `json:"id"`
+	Code      string             `json:"code"`
+	Name      string             `json:"name"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (CreateProductRow, error) {
-	row := q.queryRow(ctx, q.createProductStmt, createProduct,
+	row := q.db.QueryRow(ctx, createProduct,
 		arg.Code,
 		arg.Name,
 		arg.Description,
@@ -138,25 +137,25 @@ RETURNING id, adjustment_number, location_id, adjustment_date, status, created_a
 `
 
 type CreateStockAdjustmentParams struct {
-	AdjustmentNumber string         `json:"adjustment_number"`
-	LocationID       uuid.UUID      `json:"location_id"`
-	AdjustmentDate   time.Time      `json:"adjustment_date"`
-	Reason           sql.NullString `json:"reason"`
-	Status           sql.NullString `json:"status"`
-	CreatedBy        uuid.NullUUID  `json:"created_by"`
+	AdjustmentNumber string      `json:"adjustment_number"`
+	LocationID       uuid.UUID   `json:"location_id"`
+	AdjustmentDate   pgtype.Date `json:"adjustment_date"`
+	Reason           *string     `json:"reason"`
+	Status           *string     `json:"status"`
+	CreatedBy        pgtype.UUID `json:"created_by"`
 }
 
 type CreateStockAdjustmentRow struct {
-	ID               uuid.UUID      `json:"id"`
-	AdjustmentNumber string         `json:"adjustment_number"`
-	LocationID       uuid.UUID      `json:"location_id"`
-	AdjustmentDate   time.Time      `json:"adjustment_date"`
-	Status           sql.NullString `json:"status"`
-	CreatedAt        sql.NullTime   `json:"created_at"`
+	ID               uuid.UUID          `json:"id"`
+	AdjustmentNumber string             `json:"adjustment_number"`
+	LocationID       uuid.UUID          `json:"location_id"`
+	AdjustmentDate   pgtype.Date        `json:"adjustment_date"`
+	Status           *string            `json:"status"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) CreateStockAdjustment(ctx context.Context, arg CreateStockAdjustmentParams) (CreateStockAdjustmentRow, error) {
-	row := q.queryRow(ctx, q.createStockAdjustmentStmt, createStockAdjustment,
+	row := q.db.QueryRow(ctx, createStockAdjustment,
 		arg.AdjustmentNumber,
 		arg.LocationID,
 		arg.AdjustmentDate,
@@ -193,24 +192,24 @@ RETURNING id, adjustment_id, product_id, quantity_before, quantity_after, differ
 type CreateStockAdjustmentLineParams struct {
 	AdjustmentID   uuid.UUID      `json:"adjustment_id"`
 	ProductID      uuid.UUID      `json:"product_id"`
-	QuantityBefore string         `json:"quantity_before"`
-	QuantityAfter  string         `json:"quantity_after"`
+	QuantityBefore pgtype.Numeric `json:"quantity_before"`
+	QuantityAfter  pgtype.Numeric `json:"quantity_after"`
 	LineNumber     int32          `json:"line_number"`
-	Notes          sql.NullString `json:"notes"`
+	Notes          *string        `json:"notes"`
 }
 
 type CreateStockAdjustmentLineRow struct {
 	ID             uuid.UUID      `json:"id"`
 	AdjustmentID   uuid.UUID      `json:"adjustment_id"`
 	ProductID      uuid.UUID      `json:"product_id"`
-	QuantityBefore string         `json:"quantity_before"`
-	QuantityAfter  string         `json:"quantity_after"`
-	Difference     sql.NullString `json:"difference"`
+	QuantityBefore pgtype.Numeric `json:"quantity_before"`
+	QuantityAfter  pgtype.Numeric `json:"quantity_after"`
+	Difference     pgtype.Numeric `json:"difference"`
 	LineNumber     int32          `json:"line_number"`
 }
 
 func (q *Queries) CreateStockAdjustmentLine(ctx context.Context, arg CreateStockAdjustmentLineParams) (CreateStockAdjustmentLineRow, error) {
-	row := q.queryRow(ctx, q.createStockAdjustmentLineStmt, createStockAdjustmentLine,
+	row := q.db.QueryRow(ctx, createStockAdjustmentLine,
 		arg.AdjustmentID,
 		arg.ProductID,
 		arg.QuantityBefore,
@@ -244,21 +243,21 @@ RETURNING id, code, name, location_type
 `
 
 type CreateStockLocationParams struct {
-	Code         string         `json:"code"`
-	Name         string         `json:"name"`
-	LocationType sql.NullString `json:"location_type"`
-	IsActive     sql.NullBool   `json:"is_active"`
+	Code         string  `json:"code"`
+	Name         string  `json:"name"`
+	LocationType *string `json:"location_type"`
+	IsActive     *bool   `json:"is_active"`
 }
 
 type CreateStockLocationRow struct {
-	ID           uuid.UUID      `json:"id"`
-	Code         string         `json:"code"`
-	Name         string         `json:"name"`
-	LocationType sql.NullString `json:"location_type"`
+	ID           uuid.UUID `json:"id"`
+	Code         string    `json:"code"`
+	Name         string    `json:"name"`
+	LocationType *string   `json:"location_type"`
 }
 
 func (q *Queries) CreateStockLocation(ctx context.Context, arg CreateStockLocationParams) (CreateStockLocationRow, error) {
-	row := q.queryRow(ctx, q.createStockLocationStmt, createStockLocation,
+	row := q.db.QueryRow(ctx, createStockLocation,
 		arg.Code,
 		arg.Name,
 		arg.LocationType,
@@ -293,30 +292,30 @@ RETURNING id, movement_number, product_id, location_id, movement_type, quantity,
 `
 
 type CreateStockMovementParams struct {
-	MovementNumber string         `json:"movement_number"`
-	ProductID      uuid.UUID      `json:"product_id"`
-	LocationID     uuid.UUID      `json:"location_id"`
-	MovementType   string         `json:"movement_type"`
-	Quantity       string         `json:"quantity"`
-	ReferenceType  sql.NullString `json:"reference_type"`
-	ReferenceID    uuid.NullUUID  `json:"reference_id"`
-	MovementDate   time.Time      `json:"movement_date"`
-	Notes          sql.NullString `json:"notes"`
-	CreatedBy      uuid.NullUUID  `json:"created_by"`
+	MovementNumber string             `json:"movement_number"`
+	ProductID      uuid.UUID          `json:"product_id"`
+	LocationID     uuid.UUID          `json:"location_id"`
+	MovementType   string             `json:"movement_type"`
+	Quantity       pgtype.Numeric     `json:"quantity"`
+	ReferenceType  *string            `json:"reference_type"`
+	ReferenceID    pgtype.UUID        `json:"reference_id"`
+	MovementDate   pgtype.Timestamptz `json:"movement_date"`
+	Notes          *string            `json:"notes"`
+	CreatedBy      pgtype.UUID        `json:"created_by"`
 }
 
 type CreateStockMovementRow struct {
-	ID             uuid.UUID `json:"id"`
-	MovementNumber string    `json:"movement_number"`
-	ProductID      uuid.UUID `json:"product_id"`
-	LocationID     uuid.UUID `json:"location_id"`
-	MovementType   string    `json:"movement_type"`
-	Quantity       string    `json:"quantity"`
-	MovementDate   time.Time `json:"movement_date"`
+	ID             uuid.UUID          `json:"id"`
+	MovementNumber string             `json:"movement_number"`
+	ProductID      uuid.UUID          `json:"product_id"`
+	LocationID     uuid.UUID          `json:"location_id"`
+	MovementType   string             `json:"movement_type"`
+	Quantity       pgtype.Numeric     `json:"quantity"`
+	MovementDate   pgtype.Timestamptz `json:"movement_date"`
 }
 
 func (q *Queries) CreateStockMovement(ctx context.Context, arg CreateStockMovementParams) (CreateStockMovementRow, error) {
-	row := q.queryRow(ctx, q.createStockMovementStmt, createStockMovement,
+	row := q.db.QueryRow(ctx, createStockMovement,
 		arg.MovementNumber,
 		arg.ProductID,
 		arg.LocationID,
@@ -359,9 +358,9 @@ type CreateUnitOfMeasureParams struct {
 	Code             string         `json:"code"`
 	Name             string         `json:"name"`
 	UnitType         string         `json:"unit_type"`
-	IsBaseUnit       sql.NullBool   `json:"is_base_unit"`
-	ConversionFactor sql.NullString `json:"conversion_factor"`
-	IsActive         sql.NullBool   `json:"is_active"`
+	IsBaseUnit       *bool          `json:"is_base_unit"`
+	ConversionFactor pgtype.Numeric `json:"conversion_factor"`
+	IsActive         *bool          `json:"is_active"`
 }
 
 type CreateUnitOfMeasureRow struct {
@@ -372,7 +371,7 @@ type CreateUnitOfMeasureRow struct {
 }
 
 func (q *Queries) CreateUnitOfMeasure(ctx context.Context, arg CreateUnitOfMeasureParams) (CreateUnitOfMeasureRow, error) {
-	row := q.queryRow(ctx, q.createUnitOfMeasureStmt, createUnitOfMeasure,
+	row := q.db.QueryRow(ctx, createUnitOfMeasure,
 		arg.Code,
 		arg.Name,
 		arg.UnitType,
@@ -406,7 +405,7 @@ LIMIT 1
 `
 
 func (q *Queries) GetCategoryByID(ctx context.Context, id uuid.UUID) (Category, error) {
-	row := q.queryRow(ctx, q.getCategoryByIDStmt, getCategoryByID, id)
+	row := q.db.QueryRow(ctx, getCategoryByID, id)
 	var i Category
 	err := row.Scan(
 		&i.ID,
@@ -443,17 +442,17 @@ type GetProductByCodeRow struct {
 	ID          uuid.UUID      `json:"id"`
 	Code        string         `json:"code"`
 	Name        string         `json:"name"`
-	Description sql.NullString `json:"description"`
-	CategoryID  uuid.NullUUID  `json:"category_id"`
+	Description *string        `json:"description"`
+	CategoryID  pgtype.UUID    `json:"category_id"`
 	UomID       uuid.UUID      `json:"uom_id"`
-	ProductType sql.NullString `json:"product_type"`
-	CostPrice   sql.NullString `json:"cost_price"`
-	SalePrice   sql.NullString `json:"sale_price"`
-	IsActive    sql.NullBool   `json:"is_active"`
+	ProductType *string        `json:"product_type"`
+	CostPrice   pgtype.Numeric `json:"cost_price"`
+	SalePrice   pgtype.Numeric `json:"sale_price"`
+	IsActive    *bool          `json:"is_active"`
 }
 
 func (q *Queries) GetProductByCode(ctx context.Context, code string) (GetProductByCodeRow, error) {
-	row := q.queryRow(ctx, q.getProductByCodeStmt, getProductByCode, code)
+	row := q.db.QueryRow(ctx, getProductByCode, code)
 	var i GetProductByCodeRow
 	err := row.Scan(
 		&i.ID,
@@ -498,27 +497,27 @@ LIMIT 1
 `
 
 type GetProductByIDRow struct {
-	ID           uuid.UUID      `json:"id"`
-	Code         string         `json:"code"`
-	Name         string         `json:"name"`
-	Description  sql.NullString `json:"description"`
-	CategoryID   uuid.NullUUID  `json:"category_id"`
-	CategoryName sql.NullString `json:"category_name"`
-	UomID        uuid.UUID      `json:"uom_id"`
-	UomCode      string         `json:"uom_code"`
-	UomName      string         `json:"uom_name"`
-	ProductType  sql.NullString `json:"product_type"`
-	CostPrice    sql.NullString `json:"cost_price"`
-	SalePrice    sql.NullString `json:"sale_price"`
-	MinStock     sql.NullString `json:"min_stock"`
-	MaxStock     sql.NullString `json:"max_stock"`
-	IsActive     sql.NullBool   `json:"is_active"`
-	CreatedAt    sql.NullTime   `json:"created_at"`
-	UpdatedAt    sql.NullTime   `json:"updated_at"`
+	ID           uuid.UUID          `json:"id"`
+	Code         string             `json:"code"`
+	Name         string             `json:"name"`
+	Description  *string            `json:"description"`
+	CategoryID   pgtype.UUID        `json:"category_id"`
+	CategoryName *string            `json:"category_name"`
+	UomID        uuid.UUID          `json:"uom_id"`
+	UomCode      string             `json:"uom_code"`
+	UomName      string             `json:"uom_name"`
+	ProductType  *string            `json:"product_type"`
+	CostPrice    pgtype.Numeric     `json:"cost_price"`
+	SalePrice    pgtype.Numeric     `json:"sale_price"`
+	MinStock     pgtype.Numeric     `json:"min_stock"`
+	MaxStock     pgtype.Numeric     `json:"max_stock"`
+	IsActive     *bool              `json:"is_active"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) GetProductByID(ctx context.Context, id uuid.UUID) (GetProductByIDRow, error) {
-	row := q.queryRow(ctx, q.getProductByIDStmt, getProductByID, id)
+	row := q.db.QueryRow(ctx, getProductByID, id)
 	var i GetProductByIDRow
 	err := row.Scan(
 		&i.ID,
@@ -563,21 +562,21 @@ LIMIT 1
 `
 
 type GetStockAdjustmentByIDRow struct {
-	ID               uuid.UUID      `json:"id"`
-	AdjustmentNumber string         `json:"adjustment_number"`
-	LocationID       uuid.UUID      `json:"location_id"`
-	LocationName     string         `json:"location_name"`
-	AdjustmentDate   time.Time      `json:"adjustment_date"`
-	Reason           sql.NullString `json:"reason"`
-	Status           sql.NullString `json:"status"`
-	CreatedBy        uuid.NullUUID  `json:"created_by"`
-	CreatedByName    sql.NullString `json:"created_by_name"`
-	CreatedAt        sql.NullTime   `json:"created_at"`
-	UpdatedAt        sql.NullTime   `json:"updated_at"`
+	ID               uuid.UUID          `json:"id"`
+	AdjustmentNumber string             `json:"adjustment_number"`
+	LocationID       uuid.UUID          `json:"location_id"`
+	LocationName     string             `json:"location_name"`
+	AdjustmentDate   pgtype.Date        `json:"adjustment_date"`
+	Reason           *string            `json:"reason"`
+	Status           *string            `json:"status"`
+	CreatedBy        pgtype.UUID        `json:"created_by"`
+	CreatedByName    *string            `json:"created_by_name"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) GetStockAdjustmentByID(ctx context.Context, id uuid.UUID) (GetStockAdjustmentByIDRow, error) {
-	row := q.queryRow(ctx, q.getStockAdjustmentByIDStmt, getStockAdjustmentByID, id)
+	row := q.db.QueryRow(ctx, getStockAdjustmentByID, id)
 	var i GetStockAdjustmentByIDRow
 	err := row.Scan(
 		&i.ID,
@@ -619,15 +618,15 @@ type GetStockAdjustmentLinesRow struct {
 	ProductID      uuid.UUID      `json:"product_id"`
 	ProductCode    string         `json:"product_code"`
 	ProductName    string         `json:"product_name"`
-	QuantityBefore string         `json:"quantity_before"`
-	QuantityAfter  string         `json:"quantity_after"`
-	Difference     sql.NullString `json:"difference"`
+	QuantityBefore pgtype.Numeric `json:"quantity_before"`
+	QuantityAfter  pgtype.Numeric `json:"quantity_after"`
+	Difference     pgtype.Numeric `json:"difference"`
 	LineNumber     int32          `json:"line_number"`
-	Notes          sql.NullString `json:"notes"`
+	Notes          *string        `json:"notes"`
 }
 
 func (q *Queries) GetStockAdjustmentLines(ctx context.Context, adjustmentID uuid.UUID) ([]GetStockAdjustmentLinesRow, error) {
-	rows, err := q.query(ctx, q.getStockAdjustmentLinesStmt, getStockAdjustmentLines, adjustmentID)
+	rows, err := q.db.Query(ctx, getStockAdjustmentLines, adjustmentID)
 	if err != nil {
 		return nil, err
 	}
@@ -650,9 +649,6 @@ func (q *Queries) GetStockAdjustmentLines(ctx context.Context, adjustmentID uuid
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -686,20 +682,20 @@ type GetStockBalanceParams struct {
 }
 
 type GetStockBalanceRow struct {
-	ID           uuid.UUID      `json:"id"`
-	ProductID    uuid.UUID      `json:"product_id"`
-	ProductCode  string         `json:"product_code"`
-	ProductName  string         `json:"product_name"`
-	LocationID   uuid.UUID      `json:"location_id"`
-	LocationName string         `json:"location_name"`
-	Quantity     sql.NullString `json:"quantity"`
-	ReservedQty  sql.NullString `json:"reserved_qty"`
-	AvailableQty sql.NullString `json:"available_qty"`
-	LastUpdated  sql.NullTime   `json:"last_updated"`
+	ID           uuid.UUID          `json:"id"`
+	ProductID    uuid.UUID          `json:"product_id"`
+	ProductCode  string             `json:"product_code"`
+	ProductName  string             `json:"product_name"`
+	LocationID   uuid.UUID          `json:"location_id"`
+	LocationName string             `json:"location_name"`
+	Quantity     pgtype.Numeric     `json:"quantity"`
+	ReservedQty  pgtype.Numeric     `json:"reserved_qty"`
+	AvailableQty pgtype.Numeric     `json:"available_qty"`
+	LastUpdated  pgtype.Timestamptz `json:"last_updated"`
 }
 
 func (q *Queries) GetStockBalance(ctx context.Context, arg GetStockBalanceParams) (GetStockBalanceRow, error) {
-	row := q.queryRow(ctx, q.getStockBalanceStmt, getStockBalance, arg.ProductID, arg.LocationID)
+	row := q.db.QueryRow(ctx, getStockBalance, arg.ProductID, arg.LocationID)
 	var i GetStockBalanceRow
 	err := row.Scan(
 		&i.ID,
@@ -730,16 +726,16 @@ ORDER BY name
 `
 
 type ListActiveCategoriesRow struct {
-	ID          uuid.UUID      `json:"id"`
-	Code        string         `json:"code"`
-	Name        string         `json:"name"`
-	Description sql.NullString `json:"description"`
-	ParentID    uuid.NullUUID  `json:"parent_id"`
-	IsActive    sql.NullBool   `json:"is_active"`
+	ID          uuid.UUID   `json:"id"`
+	Code        string      `json:"code"`
+	Name        string      `json:"name"`
+	Description *string     `json:"description"`
+	ParentID    pgtype.UUID `json:"parent_id"`
+	IsActive    *bool       `json:"is_active"`
 }
 
 func (q *Queries) ListActiveCategories(ctx context.Context) ([]ListActiveCategoriesRow, error) {
-	rows, err := q.query(ctx, q.listActiveCategoriesStmt, listActiveCategories)
+	rows, err := q.db.Query(ctx, listActiveCategories)
 	if err != nil {
 		return nil, err
 	}
@@ -758,9 +754,6 @@ func (q *Queries) ListActiveCategories(ctx context.Context) ([]ListActiveCategor
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -791,16 +784,16 @@ type ListActiveProductsRow struct {
 	ID           uuid.UUID      `json:"id"`
 	Code         string         `json:"code"`
 	Name         string         `json:"name"`
-	CategoryID   uuid.NullUUID  `json:"category_id"`
-	CategoryName sql.NullString `json:"category_name"`
-	ProductType  sql.NullString `json:"product_type"`
-	CostPrice    sql.NullString `json:"cost_price"`
-	SalePrice    sql.NullString `json:"sale_price"`
-	IsActive     sql.NullBool   `json:"is_active"`
+	CategoryID   pgtype.UUID    `json:"category_id"`
+	CategoryName *string        `json:"category_name"`
+	ProductType  *string        `json:"product_type"`
+	CostPrice    pgtype.Numeric `json:"cost_price"`
+	SalePrice    pgtype.Numeric `json:"sale_price"`
+	IsActive     *bool          `json:"is_active"`
 }
 
 func (q *Queries) ListActiveProducts(ctx context.Context, dollar_1 uuid.UUID) ([]ListActiveProductsRow, error) {
-	rows, err := q.query(ctx, q.listActiveProductsStmt, listActiveProducts, dollar_1)
+	rows, err := q.db.Query(ctx, listActiveProducts, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -823,9 +816,6 @@ func (q *Queries) ListActiveProducts(ctx context.Context, dollar_1 uuid.UUID) ([
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -845,15 +835,15 @@ ORDER BY name
 `
 
 type ListActiveStockLocationsRow struct {
-	ID           uuid.UUID      `json:"id"`
-	Code         string         `json:"code"`
-	Name         string         `json:"name"`
-	LocationType sql.NullString `json:"location_type"`
-	IsActive     sql.NullBool   `json:"is_active"`
+	ID           uuid.UUID `json:"id"`
+	Code         string    `json:"code"`
+	Name         string    `json:"name"`
+	LocationType *string   `json:"location_type"`
+	IsActive     *bool     `json:"is_active"`
 }
 
 func (q *Queries) ListActiveStockLocations(ctx context.Context) ([]ListActiveStockLocationsRow, error) {
-	rows, err := q.query(ctx, q.listActiveStockLocationsStmt, listActiveStockLocations)
+	rows, err := q.db.Query(ctx, listActiveStockLocations)
 	if err != nil {
 		return nil, err
 	}
@@ -871,9 +861,6 @@ func (q *Queries) ListActiveStockLocations(ctx context.Context) ([]ListActiveSto
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -899,12 +886,12 @@ type ListActiveUoMRow struct {
 	Code             string         `json:"code"`
 	Name             string         `json:"name"`
 	UnitType         string         `json:"unit_type"`
-	IsBaseUnit       sql.NullBool   `json:"is_base_unit"`
-	ConversionFactor sql.NullString `json:"conversion_factor"`
+	IsBaseUnit       *bool          `json:"is_base_unit"`
+	ConversionFactor pgtype.Numeric `json:"conversion_factor"`
 }
 
 func (q *Queries) ListActiveUoM(ctx context.Context) ([]ListActiveUoMRow, error) {
-	rows, err := q.query(ctx, q.listActiveUoMStmt, listActiveUoM)
+	rows, err := q.db.Query(ctx, listActiveUoM)
 	if err != nil {
 		return nil, err
 	}
@@ -923,9 +910,6 @@ func (q *Queries) ListActiveUoM(ctx context.Context) ([]ListActiveUoMRow, error)
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -959,18 +943,18 @@ type ListStockAdjustmentsParams struct {
 }
 
 type ListStockAdjustmentsRow struct {
-	ID               uuid.UUID      `json:"id"`
-	AdjustmentNumber string         `json:"adjustment_number"`
-	LocationID       uuid.UUID      `json:"location_id"`
-	LocationName     string         `json:"location_name"`
-	AdjustmentDate   time.Time      `json:"adjustment_date"`
-	Reason           sql.NullString `json:"reason"`
-	Status           sql.NullString `json:"status"`
-	CreatedAt        sql.NullTime   `json:"created_at"`
+	ID               uuid.UUID          `json:"id"`
+	AdjustmentNumber string             `json:"adjustment_number"`
+	LocationID       uuid.UUID          `json:"location_id"`
+	LocationName     string             `json:"location_name"`
+	AdjustmentDate   pgtype.Date        `json:"adjustment_date"`
+	Reason           *string            `json:"reason"`
+	Status           *string            `json:"status"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) ListStockAdjustments(ctx context.Context, arg ListStockAdjustmentsParams) ([]ListStockAdjustmentsRow, error) {
-	rows, err := q.query(ctx, q.listStockAdjustmentsStmt, listStockAdjustments,
+	rows, err := q.db.Query(ctx, listStockAdjustments,
 		arg.Column1,
 		arg.Column2,
 		arg.Limit,
@@ -996,9 +980,6 @@ func (q *Queries) ListStockAdjustments(ctx context.Context, arg ListStockAdjustm
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1036,22 +1017,22 @@ type ListStockBalancesParams struct {
 }
 
 type ListStockBalancesRow struct {
-	ID           uuid.UUID      `json:"id"`
-	ProductID    uuid.UUID      `json:"product_id"`
-	ProductCode  string         `json:"product_code"`
-	ProductName  string         `json:"product_name"`
-	LocationID   uuid.UUID      `json:"location_id"`
-	LocationName string         `json:"location_name"`
-	Quantity     sql.NullString `json:"quantity"`
-	ReservedQty  sql.NullString `json:"reserved_qty"`
-	AvailableQty sql.NullString `json:"available_qty"`
-	MinStock     sql.NullString `json:"min_stock"`
-	MaxStock     sql.NullString `json:"max_stock"`
-	LastUpdated  sql.NullTime   `json:"last_updated"`
+	ID           uuid.UUID          `json:"id"`
+	ProductID    uuid.UUID          `json:"product_id"`
+	ProductCode  string             `json:"product_code"`
+	ProductName  string             `json:"product_name"`
+	LocationID   uuid.UUID          `json:"location_id"`
+	LocationName string             `json:"location_name"`
+	Quantity     pgtype.Numeric     `json:"quantity"`
+	ReservedQty  pgtype.Numeric     `json:"reserved_qty"`
+	AvailableQty pgtype.Numeric     `json:"available_qty"`
+	MinStock     pgtype.Numeric     `json:"min_stock"`
+	MaxStock     pgtype.Numeric     `json:"max_stock"`
+	LastUpdated  pgtype.Timestamptz `json:"last_updated"`
 }
 
 func (q *Queries) ListStockBalances(ctx context.Context, arg ListStockBalancesParams) ([]ListStockBalancesRow, error) {
-	rows, err := q.query(ctx, q.listStockBalancesStmt, listStockBalances, arg.Column1, arg.Column2, arg.Column3)
+	rows, err := q.db.Query(ctx, listStockBalances, arg.Column1, arg.Column2, arg.Column3)
 	if err != nil {
 		return nil, err
 	}
@@ -1076,9 +1057,6 @@ func (q *Queries) ListStockBalances(ctx context.Context, arg ListStockBalancesPa
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1115,34 +1093,34 @@ LIMIT $6 OFFSET $7
 `
 
 type ListStockMovementsParams struct {
-	Column1 uuid.UUID `json:"column_1"`
-	Column2 uuid.UUID `json:"column_2"`
-	Column3 string    `json:"column_3"`
-	Column4 time.Time `json:"column_4"`
-	Column5 time.Time `json:"column_5"`
-	Limit   int32     `json:"limit"`
-	Offset  int32     `json:"offset"`
+	Column1 uuid.UUID          `json:"column_1"`
+	Column2 uuid.UUID          `json:"column_2"`
+	Column3 string             `json:"column_3"`
+	Column4 pgtype.Timestamptz `json:"column_4"`
+	Column5 pgtype.Timestamptz `json:"column_5"`
+	Limit   int32              `json:"limit"`
+	Offset  int32              `json:"offset"`
 }
 
 type ListStockMovementsRow struct {
-	ID             uuid.UUID      `json:"id"`
-	MovementNumber string         `json:"movement_number"`
-	ProductID      uuid.UUID      `json:"product_id"`
-	ProductCode    string         `json:"product_code"`
-	ProductName    string         `json:"product_name"`
-	LocationID     uuid.UUID      `json:"location_id"`
-	LocationName   string         `json:"location_name"`
-	MovementType   string         `json:"movement_type"`
-	Quantity       string         `json:"quantity"`
-	ReferenceType  sql.NullString `json:"reference_type"`
-	ReferenceID    uuid.NullUUID  `json:"reference_id"`
-	MovementDate   time.Time      `json:"movement_date"`
-	Notes          sql.NullString `json:"notes"`
-	CreatedAt      sql.NullTime   `json:"created_at"`
+	ID             uuid.UUID          `json:"id"`
+	MovementNumber string             `json:"movement_number"`
+	ProductID      uuid.UUID          `json:"product_id"`
+	ProductCode    string             `json:"product_code"`
+	ProductName    string             `json:"product_name"`
+	LocationID     uuid.UUID          `json:"location_id"`
+	LocationName   string             `json:"location_name"`
+	MovementType   string             `json:"movement_type"`
+	Quantity       pgtype.Numeric     `json:"quantity"`
+	ReferenceType  *string            `json:"reference_type"`
+	ReferenceID    pgtype.UUID        `json:"reference_id"`
+	MovementDate   pgtype.Timestamptz `json:"movement_date"`
+	Notes          *string            `json:"notes"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) ListStockMovements(ctx context.Context, arg ListStockMovementsParams) ([]ListStockMovementsRow, error) {
-	rows, err := q.query(ctx, q.listStockMovementsStmt, listStockMovements,
+	rows, err := q.db.Query(ctx, listStockMovements,
 		arg.Column1,
 		arg.Column2,
 		arg.Column3,
@@ -1178,9 +1156,6 @@ func (q *Queries) ListStockMovements(ctx context.Context, arg ListStockMovements
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -1205,17 +1180,17 @@ WHERE id = $1
 type UpdateProductParams struct {
 	ID          uuid.UUID      `json:"id"`
 	Name        string         `json:"name"`
-	Description sql.NullString `json:"description"`
-	CategoryID  uuid.NullUUID  `json:"category_id"`
-	CostPrice   sql.NullString `json:"cost_price"`
-	SalePrice   sql.NullString `json:"sale_price"`
-	MinStock    sql.NullString `json:"min_stock"`
-	MaxStock    sql.NullString `json:"max_stock"`
-	IsActive    sql.NullBool   `json:"is_active"`
+	Description *string        `json:"description"`
+	CategoryID  pgtype.UUID    `json:"category_id"`
+	CostPrice   pgtype.Numeric `json:"cost_price"`
+	SalePrice   pgtype.Numeric `json:"sale_price"`
+	MinStock    pgtype.Numeric `json:"min_stock"`
+	MaxStock    pgtype.Numeric `json:"max_stock"`
+	IsActive    *bool          `json:"is_active"`
 }
 
 func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) error {
-	_, err := q.exec(ctx, q.updateProductStmt, updateProduct,
+	_, err := q.db.Exec(ctx, updateProduct,
 		arg.ID,
 		arg.Name,
 		arg.Description,
@@ -1237,12 +1212,12 @@ WHERE id = $1
 `
 
 type UpdateStockAdjustmentStatusParams struct {
-	ID     uuid.UUID      `json:"id"`
-	Status sql.NullString `json:"status"`
+	ID     uuid.UUID `json:"id"`
+	Status *string   `json:"status"`
 }
 
 func (q *Queries) UpdateStockAdjustmentStatus(ctx context.Context, arg UpdateStockAdjustmentStatusParams) error {
-	_, err := q.exec(ctx, q.updateStockAdjustmentStatusStmt, updateStockAdjustmentStatus, arg.ID, arg.Status)
+	_, err := q.db.Exec(ctx, updateStockAdjustmentStatus, arg.ID, arg.Status)
 	return err
 }
 
@@ -1257,11 +1232,11 @@ WHERE product_id = $1
 type UpdateStockQuantityParams struct {
 	ProductID  uuid.UUID      `json:"product_id"`
 	LocationID uuid.UUID      `json:"location_id"`
-	Quantity   sql.NullString `json:"quantity"`
+	Quantity   pgtype.Numeric `json:"quantity"`
 }
 
 func (q *Queries) UpdateStockQuantity(ctx context.Context, arg UpdateStockQuantityParams) error {
-	_, err := q.exec(ctx, q.updateStockQuantityStmt, updateStockQuantity, arg.ProductID, arg.LocationID, arg.Quantity)
+	_, err := q.db.Exec(ctx, updateStockQuantity, arg.ProductID, arg.LocationID, arg.Quantity)
 	return err
 }
 
@@ -1285,21 +1260,21 @@ RETURNING id, product_id, location_id, quantity, reserved_qty, available_qty
 type UpsertStockBalanceParams struct {
 	ProductID   uuid.UUID      `json:"product_id"`
 	LocationID  uuid.UUID      `json:"location_id"`
-	Quantity    sql.NullString `json:"quantity"`
-	ReservedQty sql.NullString `json:"reserved_qty"`
+	Quantity    pgtype.Numeric `json:"quantity"`
+	ReservedQty pgtype.Numeric `json:"reserved_qty"`
 }
 
 type UpsertStockBalanceRow struct {
 	ID           uuid.UUID      `json:"id"`
 	ProductID    uuid.UUID      `json:"product_id"`
 	LocationID   uuid.UUID      `json:"location_id"`
-	Quantity     sql.NullString `json:"quantity"`
-	ReservedQty  sql.NullString `json:"reserved_qty"`
-	AvailableQty sql.NullString `json:"available_qty"`
+	Quantity     pgtype.Numeric `json:"quantity"`
+	ReservedQty  pgtype.Numeric `json:"reserved_qty"`
+	AvailableQty pgtype.Numeric `json:"available_qty"`
 }
 
 func (q *Queries) UpsertStockBalance(ctx context.Context, arg UpsertStockBalanceParams) (UpsertStockBalanceRow, error) {
-	row := q.queryRow(ctx, q.upsertStockBalanceStmt, upsertStockBalance,
+	row := q.db.QueryRow(ctx, upsertStockBalance,
 		arg.ProductID,
 		arg.LocationID,
 		arg.Quantity,

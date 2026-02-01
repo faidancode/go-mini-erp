@@ -3,13 +3,13 @@
 //   sqlc v1.30.0
 // source: auth.sql
 
-package dbgen
+package db
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const assignRoleToUser = `-- name: AssignRoleToUser :one
@@ -24,20 +24,20 @@ RETURNING id, user_id, role_id, assigned_at
 `
 
 type AssignRoleToUserParams struct {
-	UserID     uuid.UUID     `json:"user_id"`
-	RoleID     uuid.UUID     `json:"role_id"`
-	AssignedBy uuid.NullUUID `json:"assigned_by"`
+	UserID     uuid.UUID   `json:"user_id"`
+	RoleID     uuid.UUID   `json:"role_id"`
+	AssignedBy pgtype.UUID `json:"assigned_by"`
 }
 
 type AssignRoleToUserRow struct {
-	ID         uuid.UUID    `json:"id"`
-	UserID     uuid.UUID    `json:"user_id"`
-	RoleID     uuid.UUID    `json:"role_id"`
-	AssignedAt sql.NullTime `json:"assigned_at"`
+	ID         uuid.UUID          `json:"id"`
+	UserID     uuid.UUID          `json:"user_id"`
+	RoleID     uuid.UUID          `json:"role_id"`
+	AssignedAt pgtype.Timestamptz `json:"assigned_at"`
 }
 
 func (q *Queries) AssignRoleToUser(ctx context.Context, arg AssignRoleToUserParams) (AssignRoleToUserRow, error) {
-	row := q.queryRow(ctx, q.assignRoleToUserStmt, assignRoleToUser, arg.UserID, arg.RoleID, arg.AssignedBy)
+	row := q.db.QueryRow(ctx, assignRoleToUser, arg.UserID, arg.RoleID, arg.AssignedBy)
 	var i AssignRoleToUserRow
 	err := row.Scan(
 		&i.ID,
@@ -57,7 +57,7 @@ SELECT EXISTS(
 `
 
 func (q *Queries) CheckEmailExists(ctx context.Context, email string) (bool, error) {
-	row := q.queryRow(ctx, q.checkEmailExistsStmt, checkEmailExists, email)
+	row := q.db.QueryRow(ctx, checkEmailExists, email)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
@@ -72,7 +72,7 @@ SELECT EXISTS(
 `
 
 func (q *Queries) CheckUsernameExists(ctx context.Context, username string) (bool, error) {
-	row := q.queryRow(ctx, q.checkUsernameExistsStmt, checkUsernameExists, username)
+	row := q.db.QueryRow(ctx, checkUsernameExists, username)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
@@ -92,24 +92,24 @@ RETURNING id, username, email, full_name, is_active, created_at
 `
 
 type CreateUserParams struct {
-	Username     string       `json:"username"`
-	Email        string       `json:"email"`
-	PasswordHash string       `json:"password_hash"`
-	FullName     string       `json:"full_name"`
-	IsActive     sql.NullBool `json:"is_active"`
+	Username     string `json:"username"`
+	Email        string `json:"email"`
+	PasswordHash string `json:"password_hash"`
+	FullName     string `json:"full_name"`
+	IsActive     *bool  `json:"is_active"`
 }
 
 type CreateUserRow struct {
-	ID        uuid.UUID    `json:"id"`
-	Username  string       `json:"username"`
-	Email     string       `json:"email"`
-	FullName  string       `json:"full_name"`
-	IsActive  sql.NullBool `json:"is_active"`
-	CreatedAt sql.NullTime `json:"created_at"`
+	ID        uuid.UUID          `json:"id"`
+	Username  string             `json:"username"`
+	Email     string             `json:"email"`
+	FullName  string             `json:"full_name"`
+	IsActive  *bool              `json:"is_active"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
-	row := q.queryRow(ctx, q.createUserStmt, createUser,
+	row := q.db.QueryRow(ctx, createUser,
 		arg.Username,
 		arg.Email,
 		arg.PasswordHash,
@@ -146,19 +146,19 @@ LIMIT 1
 `
 
 type GetUserByEmailRow struct {
-	ID           uuid.UUID    `json:"id"`
-	Username     string       `json:"username"`
-	Email        string       `json:"email"`
-	PasswordHash string       `json:"password_hash"`
-	FullName     string       `json:"full_name"`
-	IsActive     sql.NullBool `json:"is_active"`
-	LastLoginAt  sql.NullTime `json:"last_login_at"`
-	CreatedAt    sql.NullTime `json:"created_at"`
-	UpdatedAt    sql.NullTime `json:"updated_at"`
+	ID           uuid.UUID          `json:"id"`
+	Username     string             `json:"username"`
+	Email        string             `json:"email"`
+	PasswordHash string             `json:"password_hash"`
+	FullName     string             `json:"full_name"`
+	IsActive     *bool              `json:"is_active"`
+	LastLoginAt  pgtype.Timestamptz `json:"last_login_at"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
-	row := q.queryRow(ctx, q.getUserByEmailStmt, getUserByEmail, email)
+	row := q.db.QueryRow(ctx, getUserByEmail, email)
 	var i GetUserByEmailRow
 	err := row.Scan(
 		&i.ID,
@@ -191,18 +191,18 @@ LIMIT 1
 `
 
 type GetUserByIDRow struct {
-	ID          uuid.UUID    `json:"id"`
-	Username    string       `json:"username"`
-	Email       string       `json:"email"`
-	FullName    string       `json:"full_name"`
-	IsActive    sql.NullBool `json:"is_active"`
-	LastLoginAt sql.NullTime `json:"last_login_at"`
-	CreatedAt   sql.NullTime `json:"created_at"`
-	UpdatedAt   sql.NullTime `json:"updated_at"`
+	ID          uuid.UUID          `json:"id"`
+	Username    string             `json:"username"`
+	Email       string             `json:"email"`
+	FullName    string             `json:"full_name"`
+	IsActive    *bool              `json:"is_active"`
+	LastLoginAt pgtype.Timestamptz `json:"last_login_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error) {
-	row := q.queryRow(ctx, q.getUserByIDStmt, getUserByID, id)
+	row := q.db.QueryRow(ctx, getUserByID, id)
 	var i GetUserByIDRow
 	err := row.Scan(
 		&i.ID,
@@ -235,19 +235,19 @@ LIMIT 1
 `
 
 type GetUserByUsernameRow struct {
-	ID           uuid.UUID    `json:"id"`
-	Username     string       `json:"username"`
-	Email        string       `json:"email"`
-	PasswordHash string       `json:"password_hash"`
-	FullName     string       `json:"full_name"`
-	IsActive     sql.NullBool `json:"is_active"`
-	LastLoginAt  sql.NullTime `json:"last_login_at"`
-	CreatedAt    sql.NullTime `json:"created_at"`
-	UpdatedAt    sql.NullTime `json:"updated_at"`
+	ID           uuid.UUID          `json:"id"`
+	Username     string             `json:"username"`
+	Email        string             `json:"email"`
+	PasswordHash string             `json:"password_hash"`
+	FullName     string             `json:"full_name"`
+	IsActive     *bool              `json:"is_active"`
+	LastLoginAt  pgtype.Timestamptz `json:"last_login_at"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (GetUserByUsernameRow, error) {
-	row := q.queryRow(ctx, q.getUserByUsernameStmt, getUserByUsername, username)
+	row := q.db.QueryRow(ctx, getUserByUsername, username)
 	var i GetUserByUsernameRow
 	err := row.Scan(
 		&i.ID,
@@ -264,7 +264,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (GetUs
 }
 
 const getUserMenus = `-- name: GetUserMenus :many
-SELECT DISTINCT
+SELECT 
     m.id,
     m.parent_id,
     m.code,
@@ -272,10 +272,11 @@ SELECT DISTINCT
     m.path,
     m.icon,
     m.sort_order,
-    MAX(rm.can_create::int) as can_create,
-    MAX(rm.can_read::int) as can_read,
-    MAX(rm.can_update::int) as can_update,
-    MAX(rm.can_delete::int) as can_delete
+    -- Cast hasil MAX ke boolean agar SQLC men-generate tipe bool
+    (MAX(rm.can_create::int) > 0)::BOOLEAN as can_create,
+    (MAX(rm.can_read::int) > 0)::BOOLEAN as can_read,
+    (MAX(rm.can_update::int) > 0)::BOOLEAN as can_update,
+    (MAX(rm.can_delete::int) > 0)::BOOLEAN as can_delete
 FROM menus m
 INNER JOIN role_menus rm ON m.id = rm.menu_id
 INNER JOIN user_roles ur ON rm.role_id = ur.role_id
@@ -286,21 +287,21 @@ ORDER BY m.sort_order, m.name
 `
 
 type GetUserMenusRow struct {
-	ID        uuid.UUID      `json:"id"`
-	ParentID  uuid.NullUUID  `json:"parent_id"`
-	Code      string         `json:"code"`
-	Name      string         `json:"name"`
-	Path      sql.NullString `json:"path"`
-	Icon      sql.NullString `json:"icon"`
-	SortOrder sql.NullInt32  `json:"sort_order"`
-	CanCreate interface{}    `json:"can_create"`
-	CanRead   interface{}    `json:"can_read"`
-	CanUpdate interface{}    `json:"can_update"`
-	CanDelete interface{}    `json:"can_delete"`
+	ID        uuid.UUID   `json:"id"`
+	ParentID  pgtype.UUID `json:"parent_id"`
+	Code      string      `json:"code"`
+	Name      string      `json:"name"`
+	Path      *string     `json:"path"`
+	Icon      *string     `json:"icon"`
+	SortOrder *int32      `json:"sort_order"`
+	CanCreate bool        `json:"can_create"`
+	CanRead   bool        `json:"can_read"`
+	CanUpdate bool        `json:"can_update"`
+	CanDelete bool        `json:"can_delete"`
 }
 
 func (q *Queries) GetUserMenus(ctx context.Context, userID uuid.UUID) ([]GetUserMenusRow, error) {
-	rows, err := q.query(ctx, q.getUserMenusStmt, getUserMenus, userID)
+	rows, err := q.db.Query(ctx, getUserMenus, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -325,9 +326,6 @@ func (q *Queries) GetUserMenus(ctx context.Context, userID uuid.UUID) ([]GetUser
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -349,15 +347,15 @@ ORDER BY r.name
 `
 
 type GetUserRolesRow struct {
-	ID          uuid.UUID      `json:"id"`
-	Code        string         `json:"code"`
-	Name        string         `json:"name"`
-	Description sql.NullString `json:"description"`
-	AssignedAt  sql.NullTime   `json:"assigned_at"`
+	ID          uuid.UUID          `json:"id"`
+	Code        string             `json:"code"`
+	Name        string             `json:"name"`
+	Description *string            `json:"description"`
+	AssignedAt  pgtype.Timestamptz `json:"assigned_at"`
 }
 
 func (q *Queries) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]GetUserRolesRow, error) {
-	rows, err := q.query(ctx, q.getUserRolesStmt, getUserRoles, userID)
+	rows, err := q.db.Query(ctx, getUserRoles, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -376,9 +374,6 @@ func (q *Queries) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]GetUser
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -393,6 +388,6 @@ WHERE id = $1
 `
 
 func (q *Queries) UpdateUserLastLogin(ctx context.Context, id uuid.UUID) error {
-	_, err := q.exec(ctx, q.updateUserLastLoginStmt, updateUserLastLogin, id)
+	_, err := q.db.Exec(ctx, updateUserLastLogin, id)
 	return err
 }
