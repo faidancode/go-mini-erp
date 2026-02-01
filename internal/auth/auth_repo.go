@@ -2,63 +2,77 @@ package auth
 
 import (
 	"context"
-	"go-mini-erp/internal/dbgen"
+	db "go-mini-erp/internal/shared/database/sqlc"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
+//go:generate mockgen -source=auth_repo.go -destination=mocks/auth_repository_mock.go -package=mocks
 type Repository interface {
-	GetUserByUsername(ctx context.Context, username string) (dbgen.GetUserByUsernameRow, error)
-	GetUserByID(ctx context.Context, id uuid.UUID) (dbgen.GetUserByIDRow, error)
-	GetUserByEmail(ctx context.Context, email string) (dbgen.GetUserByEmailRow, error)
-	CreateUser(ctx context.Context, arg dbgen.CreateUserParams) (dbgen.CreateUserRow, error)
+	GetUserByUsername(ctx context.Context, username string) (db.GetUserByUsernameRow, error)
+	GetUserByID(ctx context.Context, id uuid.UUID) (db.GetUserByIDRow, error)
+	GetUserByEmail(ctx context.Context, email string) (db.GetUserByEmailRow, error)
+	CreateUser(ctx context.Context, arg db.CreateUserParams) (db.CreateUserRow, error)
 	UpdateUserLastLogin(ctx context.Context, id uuid.UUID) error
-	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]dbgen.GetUserRolesRow, error)
-	GetUserMenus(ctx context.Context, userID uuid.UUID) ([]dbgen.GetUserMenusRow, error)
-	AssignRoleToUser(ctx context.Context, arg dbgen.AssignRoleToUserParams) (dbgen.AssignRoleToUserRow, error)
+	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]db.GetUserRolesRow, error)
+	GetUserMenus(ctx context.Context, userID uuid.UUID) ([]db.GetUserMenusRow, error)
+	AssignRoleToUser(ctx context.Context, arg db.AssignRoleToUserParams) (db.AssignRoleToUserRow, error)
 	CheckUsernameExists(ctx context.Context, username string) (bool, error)
 	CheckEmailExists(ctx context.Context, email string) (bool, error)
 }
 
 type repository struct {
-	queries *dbgen.Queries
+	queries *db.Queries
 }
 
-func NewRepository(queries *dbgen.Queries) Repository {
+func NewRepository(queries *db.Queries) Repository {
 	return &repository{
 		queries: queries,
 	}
 }
 
-func (r *repository) GetUserByUsername(ctx context.Context, username string) (dbgen.GetUserByUsernameRow, error) {
+func (r *repository) GetUserByUsername(ctx context.Context, username string) (db.GetUserByUsernameRow, error) {
 	return r.queries.GetUserByUsername(ctx, username)
 }
 
-func (r *repository) GetUserByID(ctx context.Context, id uuid.UUID) (dbgen.GetUserByIDRow, error) {
-	return r.queries.GetUserByID(ctx, id)
+func (r *repository) GetUserByID(ctx context.Context, id uuid.UUID) (db.GetUserByIDRow, error) {
+	return r.queries.GetUserByID(ctx, pgtype.UUID{
+		Bytes: id,
+		Valid: true,
+	})
 }
 
-func (r *repository) GetUserByEmail(ctx context.Context, email string) (dbgen.GetUserByEmailRow, error) {
+func (r *repository) GetUserByEmail(ctx context.Context, email string) (db.GetUserByEmailRow, error) {
 	return r.queries.GetUserByEmail(ctx, email)
 }
 
-func (r *repository) CreateUser(ctx context.Context, arg dbgen.CreateUserParams) (dbgen.CreateUserRow, error) {
+func (r *repository) CreateUser(ctx context.Context, arg db.CreateUserParams) (db.CreateUserRow, error) {
 	return r.queries.CreateUser(ctx, arg)
 }
 
 func (r *repository) UpdateUserLastLogin(ctx context.Context, id uuid.UUID) error {
-	return r.queries.UpdateUserLastLogin(ctx, id)
+	return r.queries.UpdateUserLastLogin(ctx, pgtype.UUID{
+		Bytes: id,
+		Valid: true,
+	})
 }
 
-func (r *repository) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]dbgen.GetUserRolesRow, error) {
-	return r.queries.GetUserRoles(ctx, userID)
+func (r *repository) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]db.GetUserRolesRow, error) {
+	return r.queries.GetUserRoles(ctx, pgtype.UUID{
+		Bytes: userID,
+		Valid: true,
+	})
 }
 
-func (r *repository) GetUserMenus(ctx context.Context, userID uuid.UUID) ([]dbgen.GetUserMenusRow, error) {
-	return r.queries.GetUserMenus(ctx, userID)
+func (r *repository) GetUserMenus(ctx context.Context, userID uuid.UUID) ([]db.GetUserMenusRow, error) {
+	return r.queries.GetUserMenus(ctx, pgtype.UUID{
+		Bytes: userID,
+		Valid: true,
+	})
 }
 
-func (r *repository) AssignRoleToUser(ctx context.Context, arg dbgen.AssignRoleToUserParams) (dbgen.AssignRoleToUserRow, error) {
+func (r *repository) AssignRoleToUser(ctx context.Context, arg db.AssignRoleToUserParams) (db.AssignRoleToUserRow, error) {
 	return r.queries.AssignRoleToUser(ctx, arg)
 }
 

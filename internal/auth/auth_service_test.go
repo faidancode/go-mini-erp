@@ -1,109 +1,64 @@
-package auth
+package auth_test
 
 import (
 	"context"
 	"database/sql"
-	"go-mini-erp/internal/dbgen"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/bcrypt"
+
+	"go-mini-erp/internal/auth"
+	"go-mini-erp/internal/auth/mocks"
+	db "go-mini-erp/internal/dbgen"
 )
-
-// Mock Repository
-type MockRepository struct {
-	mock.Mock
-}
-
-func (m *MockRepository) GetUserByUsername(ctx context.Context, username string) (dbgen.GetUserByUsernameRow, error) {
-	args := m.Called(ctx, username)
-	return args.Get(0).(dbgen.GetUserByUsernameRow), args.Error(1)
-}
-
-func (m *MockRepository) GetUserByID(ctx context.Context, id uuid.UUID) (dbgen.GetUserByIDRow, error) {
-	args := m.Called(ctx, id)
-	return args.Get(0).(dbgen.GetUserByIDRow), args.Error(1)
-}
-
-func (m *MockRepository) GetUserByEmail(ctx context.Context, email string) (dbgen.GetUserByEmailRow, error) {
-	args := m.Called(ctx, email)
-	return args.Get(0).(dbgen.GetUserByEmailRow), args.Error(1)
-}
-
-func (m *MockRepository) CreateUser(ctx context.Context, arg dbgen.CreateUserParams) (dbgen.CreateUserRow, error) {
-	args := m.Called(ctx, arg)
-	return args.Get(0).(dbgen.CreateUserRow), args.Error(1)
-}
-
-func (m *MockRepository) UpdateUserLastLogin(ctx context.Context, id uuid.UUID) error {
-	args := m.Called(ctx, id)
-	return args.Error(0)
-}
-
-func (m *MockRepository) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]dbgen.GetUserRolesRow, error) {
-	args := m.Called(ctx, userID)
-	return args.Get(0).([]dbgen.GetUserRolesRow), args.Error(1)
-}
-
-func (m *MockRepository) GetUserMenus(ctx context.Context, userID uuid.UUID) ([]dbgen.GetUserMenusRow, error) {
-	args := m.Called(ctx, userID)
-	return args.Get(0).([]dbgen.GetUserMenusRow), args.Error(1)
-}
-
-func (m *MockRepository) AssignRoleToUser(ctx context.Context, arg dbgen.AssignRoleToUserParams) (dbgen.AssignRoleToUserRow, error) {
-	args := m.Called(ctx, arg)
-	return args.Get(0).(dbgen.AssignRoleToUserRow), args.Error(1)
-}
-
-func (m *MockRepository) CheckUsernameExists(ctx context.Context, username string) (bool, error) {
-	args := m.Called(ctx, username)
-	return args.Bool(0), args.Error(1)
-}
-
-func (m *MockRepository) CheckEmailExists(ctx context.Context, email string) (bool, error) {
-	args := m.Called(ctx, email)
-	return args.Bool(0), args.Error(1)
-}
 
 // Test Login - Success
 func TestLogin_Success(t *testing.T) {
-	mockRepo := new(MockRepository)
-	service := &service{
-		repo:      mockRepo,
-		jwtSecret: []byte("test-secret"),
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mocks.NewMockRepository(ctrl)
+	service := auth.NewService(mockRepo, nil)
 
 	ctx := context.Background()
 	userID := uuid.New()
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 
-	// Mock GetUserByUsername
-	mockRepo.On("GetUserByUsername", ctx, "testuser").Return(dbgen.GetUserByUsernameRow{
-		ID:           userID,
-		Username:     "testuser",
-		Email:        "test@example.com",
-		PasswordHash: string(hashedPassword),
-		FullName:     "Test User",
-		IsActive:     dbgen.NewNullBool(true),
-	}, nil)
+	// Setup expectations
+	mockRepo.EXPECT().
+		GetUserByUsername(ctx, "testuser").
+		Return(db.GetUserByUsernameRow{
+			ID:           userID,
+			Username:     "testuser",
+			Email:        "test@example.com",
+			PasswordHash: string(hashedPassword),
+			FullName:     "Test User",
+			IsActive:     db.NewNullBool(true),
+		}, nil).
+		Times(1)
 
-	// Mock GetUserRoles
-	mockRepo.On("GetUserRoles", ctx, userID).Return([]dbgen.GetUserRolesRow{
-		{
-			ID:   uuid.New(),
-			Code: "admin",
-			Name: "Administrator",
-		},
-	}, nil)
+	mockRepo.EXPECT().
+		GetUserRoles(ctx, userID).
+		Return([]db.GetUserRolesRow{
+			{
+				ID:   uuid.New(),
+				Code: "admin",
+				Name: "Administrator",
+			},
+		}, nil).
+		Times(1)
 
-	// Mock UpdateUserLastLogin
-	mockRepo.On("UpdateUserLastLogin", ctx, userID).Return(nil)
+	mockRepo.EXPECT().
+		UpdateUserLastLogin(ctx, userID).
+		Return(nil).
+		Times(1)
 
 	// Execute
-	req := LoginRequest{
+	req := auth.LoginRequest{
 		Username: "testuser",
 		Password: "password123",
 	}
@@ -119,25 +74,25 @@ func TestLogin_Success(t *testing.T) {
 	assert.Equal(t, "testuser", result.User.Username)
 	assert.Len(t, result.User.Roles, 1)
 	assert.Equal(t, "admin", result.User.Roles[0].Code)
-
-	mockRepo.AssertExpectations(t)
 }
 
-// Test Login - Invalid Credentials
+// Test Login - Invalid Credentials (User Not Found)
 func TestLogin_InvalidCredentials(t *testing.T) {
-	mockRepo := new(MockRepository)
-	service := &service{
-		repo:      mockRepo,
-		jwtSecret: []byte("test-secret"),
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mocks.NewMockRepository(ctrl)
+	service := auth.NewService(mockRepo, nil)
 
 	ctx := context.Background()
 
-	// Mock GetUserByUsername - user not found
-	mockRepo.On("GetUserByUsername", ctx, "wronguser").Return(dbgen.GetUserByUsernameRow{}, sql.ErrNoRows)
+	mockRepo.EXPECT().
+		GetUserByUsername(ctx, "wronguser").
+		Return(db.GetUserByUsernameRow{}, sql.ErrNoRows).
+		Times(1)
 
 	// Execute
-	req := LoginRequest{
+	req := auth.LoginRequest{
 		Username: "wronguser",
 		Password: "password123",
 	}
@@ -145,36 +100,36 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 
 	// Assert
 	assert.Error(t, err)
-	assert.Equal(t, ErrInvalidCredentials, err)
+	assert.ErrorIs(t, err, auth.ErrInvalidCredentials)
 	assert.Nil(t, result)
-
-	mockRepo.AssertExpectations(t)
 }
 
 // Test Login - Wrong Password
 func TestLogin_WrongPassword(t *testing.T) {
-	mockRepo := new(MockRepository)
-	service := &service{
-		repo:      mockRepo,
-		jwtSecret: []byte("test-secret"),
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mocks.NewMockRepository(ctrl)
+	service := auth.NewService(mockRepo, nil)
 
 	ctx := context.Background()
 	userID := uuid.New()
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
 
-	// Mock GetUserByUsername
-	mockRepo.On("GetUserByUsername", ctx, "testuser").Return(dbgen.GetUserByUsernameRow{
-		ID:           userID,
-		Username:     "testuser",
-		Email:        "test@example.com",
-		PasswordHash: string(hashedPassword),
-		FullName:     "Test User",
-		IsActive:     dbgen.NewNullBool(true),
-	}, nil)
+	mockRepo.EXPECT().
+		GetUserByUsername(ctx, "testuser").
+		Return(db.GetUserByUsernameRow{
+			ID:           userID,
+			Username:     "testuser",
+			Email:        "test@example.com",
+			PasswordHash: string(hashedPassword),
+			FullName:     "Test User",
+			IsActive:     db.NewNullBool(true),
+		}, nil).
+		Times(1)
 
 	// Execute
-	req := LoginRequest{
+	req := auth.LoginRequest{
 		Username: "testuser",
 		Password: "wrongpassword",
 	}
@@ -182,36 +137,36 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 	// Assert
 	assert.Error(t, err)
-	assert.Equal(t, ErrInvalidCredentials, err)
+	assert.ErrorIs(t, err, auth.ErrInvalidCredentials)
 	assert.Nil(t, result)
-
-	mockRepo.AssertExpectations(t)
 }
 
 // Test Login - User Inactive
 func TestLogin_UserInactive(t *testing.T) {
-	mockRepo := new(MockRepository)
-	service := &service{
-		repo:      mockRepo,
-		jwtSecret: []byte("test-secret"),
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mocks.NewMockRepository(ctrl)
+	service := auth.NewService(mockRepo, nil)
 
 	ctx := context.Background()
 	userID := uuid.New()
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 
-	// Mock GetUserByUsername - inactive user
-	mockRepo.On("GetUserByUsername", ctx, "testuser").Return(dbgen.GetUserByUsernameRow{
-		ID:           userID,
-		Username:     "testuser",
-		Email:        "test@example.com",
-		PasswordHash: string(hashedPassword),
-		FullName:     "Test User",
-		IsActive:     dbgen.NewNullBool(false), // Inactive
-	}, nil)
+	mockRepo.EXPECT().
+		GetUserByUsername(ctx, "testuser").
+		Return(db.GetUserByUsernameRow{
+			ID:           userID,
+			Username:     "testuser",
+			Email:        "test@example.com",
+			PasswordHash: string(hashedPassword),
+			FullName:     "Test User",
+			IsActive:     db.NewNullBool(false), // Inactive
+		}, nil).
+		Times(1)
 
 	// Execute
-	req := LoginRequest{
+	req := auth.LoginRequest{
 		Username: "testuser",
 		Password: "password123",
 	}
@@ -219,41 +174,45 @@ func TestLogin_UserInactive(t *testing.T) {
 
 	// Assert
 	assert.Error(t, err)
-	assert.Equal(t, ErrUserInactive, err)
+	assert.ErrorIs(t, err, auth.ErrUserInactive)
 	assert.Nil(t, result)
-
-	mockRepo.AssertExpectations(t)
 }
 
 // Test Register - Success
 func TestRegister_Success(t *testing.T) {
-	mockRepo := new(MockRepository)
-	service := &service{
-		repo:      mockRepo,
-		jwtSecret: []byte("test-secret"),
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mocks.NewMockRepository(ctrl)
+	service := auth.NewService(mockRepo, nil)
 
 	ctx := context.Background()
 	userID := uuid.New()
 
-	// Mock CheckUsernameExists
-	mockRepo.On("CheckUsernameExists", ctx, "newuser").Return(false, nil)
+	mockRepo.EXPECT().
+		CheckUsernameExists(ctx, "newuser").
+		Return(false, nil).
+		Times(1)
 
-	// Mock CheckEmailExists
-	mockRepo.On("CheckEmailExists", ctx, "new@example.com").Return(false, nil)
+	mockRepo.EXPECT().
+		CheckEmailExists(ctx, "new@example.com").
+		Return(false, nil).
+		Times(1)
 
-	// Mock CreateUser
-	mockRepo.On("CreateUser", ctx, mock.AnythingOfType("sqlc.CreateUserParams")).Return(dbgen.CreateUserRow{
-		ID:        userID,
-		Username:  "newuser",
-		Email:     "new@example.com",
-		FullName:  "New User",
-		IsActive:  dbgen.NewNullBool(true),
-		CreatedAt: sql.NullTime{Time: time.Now(), Valid: true},
-	}, nil)
+	mockRepo.EXPECT().
+		CreateUser(ctx, gomock.Any()).
+		Return(db.CreateUserRow{
+			ID:        userID,
+			Username:  "newuser",
+			Email:     "new@example.com",
+			FullName:  "New User",
+			IsActive:  db.NewNullBool(true),
+			CreatedAt: sql.NullTime{Time: time.Now(), Valid: true},
+		}, nil).
+		Times(1)
 
 	// Execute
-	req := RegisterRequest{
+	req := auth.RegisterRequest{
 		Username: "newuser",
 		Email:    "new@example.com",
 		Password: "password123",
@@ -266,25 +225,25 @@ func TestRegister_Success(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, "newuser", result.Username)
 	assert.Equal(t, "new@example.com", result.Email)
-
-	mockRepo.AssertExpectations(t)
 }
 
 // Test Register - Username Exists
 func TestRegister_UsernameExists(t *testing.T) {
-	mockRepo := new(MockRepository)
-	service := &service{
-		repo:      mockRepo,
-		jwtSecret: []byte("test-secret"),
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mocks.NewMockRepository(ctrl)
+	service := auth.NewService(mockRepo, nil)
 
 	ctx := context.Background()
 
-	// Mock CheckUsernameExists - username exists
-	mockRepo.On("CheckUsernameExists", ctx, "existinguser").Return(true, nil)
+	mockRepo.EXPECT().
+		CheckUsernameExists(ctx, "existinguser").
+		Return(true, nil).
+		Times(1)
 
 	// Execute
-	req := RegisterRequest{
+	req := auth.RegisterRequest{
 		Username: "existinguser",
 		Email:    "new@example.com",
 		Password: "password123",
@@ -294,30 +253,32 @@ func TestRegister_UsernameExists(t *testing.T) {
 
 	// Assert
 	assert.Error(t, err)
-	assert.Equal(t, ErrUsernameExists, err)
+	assert.ErrorIs(t, err, auth.ErrUsernameExists)
 	assert.Nil(t, result)
-
-	mockRepo.AssertExpectations(t)
 }
 
 // Test Register - Email Exists
 func TestRegister_EmailExists(t *testing.T) {
-	mockRepo := new(MockRepository)
-	service := &service{
-		repo:      mockRepo,
-		jwtSecret: []byte("test-secret"),
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mocks.NewMockRepository(ctrl)
+	service := auth.NewService(mockRepo, nil)
 
 	ctx := context.Background()
 
-	// Mock CheckUsernameExists
-	mockRepo.On("CheckUsernameExists", ctx, "newuser").Return(false, nil)
+	mockRepo.EXPECT().
+		CheckUsernameExists(ctx, "newuser").
+		Return(false, nil).
+		Times(1)
 
-	// Mock CheckEmailExists - email exists
-	mockRepo.On("CheckEmailExists", ctx, "existing@example.com").Return(true, nil)
+	mockRepo.EXPECT().
+		CheckEmailExists(ctx, "existing@example.com").
+		Return(true, nil).
+		Times(1)
 
 	// Execute
-	req := RegisterRequest{
+	req := auth.RegisterRequest{
 		Username: "newuser",
 		Email:    "existing@example.com",
 		Password: "password123",
@@ -327,54 +288,58 @@ func TestRegister_EmailExists(t *testing.T) {
 
 	// Assert
 	assert.Error(t, err)
-	assert.Equal(t, ErrEmailExists, err)
+	assert.ErrorIs(t, err, auth.ErrEmailExists)
 	assert.Nil(t, result)
-
-	mockRepo.AssertExpectations(t)
 }
 
 // Test GetProfile - Success
 func TestGetProfile_Success(t *testing.T) {
-	mockRepo := new(MockRepository)
-	service := &service{
-		repo:      mockRepo,
-		jwtSecret: []byte("test-secret"),
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mocks.NewMockRepository(ctrl)
+	service := auth.NewService(mockRepo, nil)
 
 	ctx := context.Background()
 	userID := uuid.New()
 
-	// Mock GetUserByID
-	mockRepo.On("GetUserByID", ctx, userID).Return(dbgen.GetUserByIDRow{
-		ID:        userID,
-		Username:  "testuser",
-		Email:     "test@example.com",
-		FullName:  "Test User",
-		IsActive:  dbgen.NewNullBool(true),
-		CreatedAt: sql.NullTime{Time: time.Now(), Valid: true},
-	}, nil)
+	mockRepo.EXPECT().
+		GetUserByID(ctx, userID).
+		Return(db.GetUserByIDRow{
+			ID:        userID,
+			Username:  "testuser",
+			Email:     "test@example.com",
+			FullName:  "Test User",
+			IsActive:  db.NewNullBool(true),
+			CreatedAt: sql.NullTime{Time: time.Now(), Valid: true},
+		}, nil).
+		Times(1)
 
-	// Mock GetUserRoles
-	mockRepo.On("GetUserRoles", ctx, userID).Return([]dbgen.GetUserRolesRow{
-		{
-			ID:   uuid.New(),
-			Code: "admin",
-			Name: "Administrator",
-		},
-	}, nil)
+	mockRepo.EXPECT().
+		GetUserRoles(ctx, userID).
+		Return([]db.GetUserRolesRow{
+			{
+				ID:   uuid.New(),
+				Code: "admin",
+				Name: "Administrator",
+			},
+		}, nil).
+		Times(1)
 
-	// Mock GetUserMenus
-	mockRepo.On("GetUserMenus", ctx, userID).Return([]dbgen.GetUserMenusRow{
-		{
-			ID:        uuid.New(),
-			Code:      "dashboard",
-			Name:      "Dashboard",
-			CanCreate: int64(1),
-			CanRead:   int64(1),
-			CanUpdate: int64(1),
-			CanDelete: int64(1),
-		},
-	}, nil)
+	mockRepo.EXPECT().
+		GetUserMenus(ctx, userID).
+		Return([]db.GetUserMenusRow{
+			{
+				ID:        uuid.New(),
+				Code:      "dashboard",
+				Name:      "Dashboard",
+				CanCreate: int64(1),
+				CanRead:   int64(1),
+				CanUpdate: int64(1),
+				CanDelete: int64(1),
+			},
+		}, nil).
+		Times(1)
 
 	// Execute
 	result, err := service.GetProfile(ctx, userID)
@@ -386,31 +351,29 @@ func TestGetProfile_Success(t *testing.T) {
 	assert.Len(t, result.Roles, 1)
 	assert.Len(t, result.Menus, 1)
 	assert.True(t, result.Menus[0].CanRead)
-
-	mockRepo.AssertExpectations(t)
 }
 
 // Test GetProfile - User Not Found
 func TestGetProfile_UserNotFound(t *testing.T) {
-	mockRepo := new(MockRepository)
-	service := &service{
-		repo:      mockRepo,
-		jwtSecret: []byte("test-secret"),
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mocks.NewMockRepository(ctrl)
+	service := auth.NewService(mockRepo, nil)
 
 	ctx := context.Background()
 	userID := uuid.New()
 
-	// Mock GetUserByID - user not found
-	mockRepo.On("GetUserByID", ctx, userID).Return(dbgen.GetUserByIDRow{}, sql.ErrNoRows)
+	mockRepo.EXPECT().
+		GetUserByID(ctx, userID).
+		Return(db.GetUserByIDRow{}, sql.ErrNoRows).
+		Times(1)
 
 	// Execute
 	result, err := service.GetProfile(ctx, userID)
 
 	// Assert
 	assert.Error(t, err)
-	assert.Equal(t, ErrUserNotFound, err)
+	assert.ErrorIs(t, err, auth.ErrUserNotFound)
 	assert.Nil(t, result)
-
-	mockRepo.AssertExpectations(t)
 }
