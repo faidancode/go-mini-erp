@@ -177,6 +177,20 @@ func (mr *MockRepositoryMockRecorder) GetUserRoles(ctx, userID any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserRoles", reflect.TypeOf((*MockRepository)(nil).GetUserRoles), ctx, userID)
 }
 
+// RemoveRoleFromUser mocks base method.
+func (m *MockRepository) RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveRoleFromUser", ctx, userID, roleID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveRoleFromUser indicates an expected call of RemoveRoleFromUser.
+func (mr *MockRepositoryMockRecorder) RemoveRoleFromUser(ctx, userID, roleID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveRoleFromUser", reflect.TypeOf((*MockRepository)(nil).RemoveRoleFromUser), ctx, userID, roleID)
+}
+
 // UpdateUserLastLogin mocks base method.
 func (m *MockRepository) UpdateUserLastLogin(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()

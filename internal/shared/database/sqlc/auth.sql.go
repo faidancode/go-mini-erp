@@ -380,6 +380,21 @@ func (q *Queries) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]GetUser
 	return items, nil
 }
 
+const removeRoleFromUser = `-- name: RemoveRoleFromUser :exec
+DELETE FROM user_roles
+WHERE user_id = $1 AND role_id = $2
+`
+
+type RemoveRoleFromUserParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	RoleID uuid.UUID `json:"role_id"`
+}
+
+func (q *Queries) RemoveRoleFromUser(ctx context.Context, arg RemoveRoleFromUserParams) error {
+	_, err := q.db.Exec(ctx, removeRoleFromUser, arg.UserID, arg.RoleID)
+	return err
+}
+
 const updateUserLastLogin = `-- name: UpdateUserLastLogin :exec
 UPDATE users
 SET last_login_at = NOW(),

@@ -42,6 +42,21 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 	return m.recorder
 }
 
+// AssignRoleToUser mocks base method.
+func (m *MockService) AssignRoleToUser(ctx context.Context, userID, roleID, assignedBy uuid.UUID) (*auth.RoleAssignmentResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AssignRoleToUser", ctx, userID, roleID, assignedBy)
+	ret0, _ := ret[0].(*auth.RoleAssignmentResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AssignRoleToUser indicates an expected call of AssignRoleToUser.
+func (mr *MockServiceMockRecorder) AssignRoleToUser(ctx, userID, roleID, assignedBy any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignRoleToUser", reflect.TypeOf((*MockService)(nil).AssignRoleToUser), ctx, userID, roleID, assignedBy)
+}
+
 // GetProfile mocks base method.
 func (m *MockService) GetProfile(ctx context.Context, userID uuid.UUID) (*auth.UserProfile, error) {
 	m.ctrl.T.Helper()
@@ -55,6 +70,21 @@ func (m *MockService) GetProfile(ctx context.Context, userID uuid.UUID) (*auth.U
 func (mr *MockServiceMockRecorder) GetProfile(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProfile", reflect.TypeOf((*MockService)(nil).GetProfile), ctx, userID)
+}
+
+// GetUserRoles mocks base method.
+func (m *MockService) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]auth.RoleInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserRoles", ctx, userID)
+	ret0, _ := ret[0].([]auth.RoleInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserRoles indicates an expected call of GetUserRoles.
+func (mr *MockServiceMockRecorder) GetUserRoles(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserRoles", reflect.TypeOf((*MockService)(nil).GetUserRoles), ctx, userID)
 }
 
 // Login mocks base method.
@@ -114,4 +144,18 @@ func (m *MockService) Register(ctx context.Context, req auth.RegisterRequest) (*
 func (mr *MockServiceMockRecorder) Register(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockService)(nil).Register), ctx, req)
+}
+
+// RemoveRoleFromUser mocks base method.
+func (m *MockService) RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveRoleFromUser", ctx, userID, roleID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveRoleFromUser indicates an expected call of RemoveRoleFromUser.
+func (mr *MockServiceMockRecorder) RemoveRoleFromUser(ctx, userID, roleID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveRoleFromUser", reflect.TypeOf((*MockService)(nil).RemoveRoleFromUser), ctx, userID, roleID)
 }

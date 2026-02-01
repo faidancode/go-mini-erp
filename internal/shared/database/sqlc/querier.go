@@ -79,6 +79,7 @@ type Querier interface {
 	ListStockBalances(ctx context.Context, arg ListStockBalancesParams) ([]ListStockBalancesRow, error)
 	ListStockMovements(ctx context.Context, arg ListStockMovementsParams) ([]ListStockMovementsRow, error)
 	ListSupplierBills(ctx context.Context, arg ListSupplierBillsParams) ([]ListSupplierBillsRow, error)
+	RemoveRoleFromUser(ctx context.Context, arg RemoveRoleFromUserParams) error
 	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) error
 	UpdateCustomerInvoicePaidAmount(ctx context.Context, arg UpdateCustomerInvoicePaidAmountParams) error
 	UpdatePOLineReceivedQty(ctx context.Context, arg UpdatePOLineReceivedQtyParams) error

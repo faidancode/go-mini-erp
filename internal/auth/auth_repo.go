@@ -23,6 +23,7 @@ type Repository interface {
 	GetUserMenus(ctx context.Context, userID uuid.UUID) ([]db.GetUserMenusRow, error)
 
 	AssignRoleToUser(ctx context.Context, arg db.AssignRoleToUserParams) (db.AssignRoleToUserRow, error)
+	RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error
 
 	CheckUsernameExists(ctx context.Context, username string) (bool, error)
 	CheckEmailExists(ctx context.Context, email string) (bool, error)
@@ -103,6 +104,14 @@ func (r *repository) AssignRoleToUser(
 	arg db.AssignRoleToUserParams,
 ) (db.AssignRoleToUserRow, error) {
 	return r.q.AssignRoleToUser(ctx, arg)
+}
+
+func (r *repository) RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error {
+	arg := db.RemoveRoleFromUserParams{
+		UserID: userID,
+		RoleID: roleID,
+	}
+	return r.q.RemoveRoleFromUser(ctx, arg)
 }
 
 // ==========================

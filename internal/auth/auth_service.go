@@ -12,14 +12,19 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	dbgen "go-mini-erp/internal/shared/database/sqlc"
+	"go-mini-erp/internal/shared/util/dbutil"
 )
 
+//go:generate mockgen -source=auth_service.go -destination=mocks/auth_service_mock.go -package=mocks
 type Service interface {
 	Login(ctx context.Context, req LoginRequest) (*LoginResponse, error)
 	Register(ctx context.Context, req RegisterRequest) (*RegisterResponse, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*TokenResponse, error)
 	GetProfile(ctx context.Context, userID uuid.UUID) (*UserProfile, error)
 	Logout(ctx context.Context, userID uuid.UUID) error
+	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]RoleInfo, error)
+	AssignRoleToUser(ctx context.Context, userID, roleID, assignedBy uuid.UUID) (*RoleAssignmentResponse, error)
+	RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error
 }
 
 type service struct {
@@ -155,6 +160,55 @@ func (s *service) Register(ctx context.Context, req RegisterRequest) (*RegisterR
 		FullName:  user.FullName,
 		CreatedAt: user.CreatedAt.Time,
 	}, nil
+}
+
+func (s *service) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]RoleInfo, error) {
+	rolesRows, err := s.repo.GetUserRoles(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	roles := make([]RoleInfo, len(rolesRows))
+	for i, r := range rolesRows {
+		roles[i] = RoleInfo{
+			ID:   r.ID,
+			Code: r.Code,
+			Name: r.Name,
+		}
+	}
+	return roles, nil
+}
+
+func (s *service) AssignRoleToUser(ctx context.Context, userID, roleID, assignedBy uuid.UUID) (*RoleAssignmentResponse, error) {
+	// cek apakah user exist
+	_, err := s.repo.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	// cek apakah role exist dan aktif - kamu bisa tambahkan method repo GetRoleByID jika perlu
+	// untuk sekarang anggap role valid
+
+	res, err := s.repo.AssignRoleToUser(ctx, dbgen.AssignRoleToUserParams{
+		UserID:     userID,
+		RoleID:     roleID,
+		AssignedBy: dbutil.UUIDPtrToPgUUID(&assignedBy),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &RoleAssignmentResponse{
+		ID:         res.ID,
+		UserID:     res.UserID,
+		RoleID:     res.RoleID,
+		AssignedAt: res.AssignedAt.Time,
+	}, nil
+}
+
+func (s *service) RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error {
+	err := s.repo.RemoveRoleFromUser(ctx, userID, roleID)
+	return err
 }
 
 // ----------------------------------------------------

@@ -121,3 +121,7 @@ SELECT EXISTS(
     WHERE email = $1 
     AND deleted_at IS NULL
 ) as exists;
+
+-- name: RemoveRoleFromUser :exec
+DELETE FROM user_roles
+WHERE user_id = $1 AND role_id = $2;

@@ -56,6 +56,13 @@ type RoleInfo struct {
 	Name string    `json:"name"`
 }
 
+type RoleAssignmentResponse struct {
+	ID         uuid.UUID `json:"id"`
+	UserID     uuid.UUID `json:"userId"`
+	RoleID     uuid.UUID `json:"roleId"`
+	AssignedAt time.Time `json:"assignedAt"`
+}
+
 type UserProfile struct {
 	ID          uuid.UUID  `json:"id"`
 	Username    string     `json:"username"`

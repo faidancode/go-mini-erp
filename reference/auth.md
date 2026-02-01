@@ -1,158 +1,209 @@
+## DTO
+package auth
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// Request/Response DTOs
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type RegisterRequest struct {
+	Username string `json:"username" binding:"required,min=3,max=50"`
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6"`
+	FullName string `json:"fullName" binding:"required"`
+}
+
+type LoginResponse struct {
+	AccessToken  string   `json:"accessToken"`
+	RefreshToken string   `json:"refreshToken"`
+	TokenType    string   `json:"tokenType"`
+	ExpiresIn    int      `json:"expiresIn"`
+	User         UserInfo `json:"user"`
+}
+
+## Repo
+package auth
+
+import (
+	"context"
+
+	db "go-mini-erp/internal/shared/database/sqlc"
+
+	"github.com/google/uuid"
+)
+
+//go:generate mockgen -source=auth_repo.go -destination=mocks/auth_repository_mock.go -package=mocks
+
+// Repository defines auth data access contract
+type Repository interface {
+	GetUserByUsername(ctx context.Context, username string) (db.GetUserByUsernameRow, error)
+	GetUserByID(ctx context.Context, id uuid.UUID) (db.GetUserByIDRow, error)
+	GetUserByEmail(ctx context.Context, email string) (db.GetUserByEmailRow, error)
+
+	CreateUser(ctx context.Context, arg db.CreateUserParams) (db.CreateUserRow, error)
+	UpdateUserLastLogin(ctx context.Context, id uuid.UUID) error
+
+	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]db.GetUserRolesRow, error)
+	GetUserMenus(ctx context.Context, userID uuid.UUID) ([]db.GetUserMenusRow, error)
+
+	AssignRoleToUser(ctx context.Context, arg db.AssignRoleToUserParams) (db.AssignRoleToUserRow, error)
+	RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error
+
+	CheckUsernameExists(ctx context.Context, username string) (bool, error)
+	CheckEmailExists(ctx context.Context, email string) (bool, error)
+}
+
+// repository is concrete implementation
+// depends on sqlc interface, NOT concrete Queries
+type repository struct {
+	q db.Querier
+}
+
+// NewRepository creates auth repository
+func NewRepository(q db.Querier) Repository {
+	return &repository{
+		q: q,
+	}
+}
+
+// ==========================
+// User
+// ==========================
+
+func (r *repository) GetUserByUsername(
+	ctx context.Context,
+	username string,
+) (db.GetUserByUsernameRow, error) {
+	return r.q.GetUserByUsername(ctx, username)
+}
+
 ## Service
 package auth
 
 import (
 	"context"
-	"os"
+	"errors"
+	"fmt"
 	"time"
 
-	autherrors "gadget-api/internal/auth/errors"
-	"gadget-api/internal/db"
-
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
+
+	dbgen "go-mini-erp/internal/shared/database/sqlc"
+	"go-mini-erp/internal/shared/util/dbutil"
 )
 
-type Service struct {
-	repo Repository
+//go:generate mockgen -source=auth_service.go -destination=mocks/auth_service_mock.go -package=mocks
+type Service interface {
+	Login(ctx context.Context, req LoginRequest) (*LoginResponse, error)
+	Register(ctx context.Context, req RegisterRequest) (*RegisterResponse, error)
+	RefreshToken(ctx context.Context, refreshToken string) (*TokenResponse, error)
+	GetProfile(ctx context.Context, userID uuid.UUID) (*UserProfile, error)
+	Logout(ctx context.Context, userID uuid.UUID) error
+	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]RoleInfo, error)
+	AssignRoleToUser(ctx context.Context, userID, roleID, assignedBy uuid.UUID) (*RoleAssignmentResponse, error)
+	RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+type service struct {
+	repo       Repository
+	queries    *dbgen.Queries
+	jwtManager JWTManager
 }
 
-func (s *Service) Login(ctx context.Context, email, password string) (string, string, AuthResponse, error) {
-	user, err := s.repo.GetByEmail(ctx, email)
-	if err != nil {
-		return "", "", AuthResponse{}, autherrors.ErrInvalidCredentials
+func NewService(
+	repo Repository,
+	queries *dbgen.Queries,
+	jwtManager JWTManager,
+) Service {
+	return &service{
+		repo:       repo,
+		queries:    queries,
+		jwtManager: jwtManager,
 	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		return "", "", AuthResponse{}, autherrors.ErrInvalidCredentials
-	}
-
-	accessToken, err := s.generateToken(user.ID.String(), user.Role, time.Minute*15)
-	if err != nil {
-		return "", "", AuthResponse{}, autherrors.ErrTokenGenerationFailed
-	}
-
-	refreshToken, err := s.generateToken(user.ID.String(), user.Role, time.Hour*24*7)
-	if err != nil {
-		return "", "", AuthResponse{}, autherrors.ErrTokenGenerationFailed
-	}
-
-	return accessToken, refreshToken, AuthResponse{
-		ID:    user.ID.String(),
-		Email: user.Email,
-		Name:  user.Name,
-		Role:  user.Role,
-	}, nil
 }
 
-func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (string, string, AuthResponse, error) {
-	token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, autherrors.ErrInvalidToken
+// ----------------------------------------------------
+// Login
+// ----------------------------------------------------
+
+func (s *service) Login(ctx context.Context, req LoginRequest) (*LoginResponse, error) {
+	user, err := s.repo.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrInvalidCredentials
 		}
-		return []byte(os.Getenv("JWT_SECRET")), nil
-	})
-
-	if err != nil || !token.Valid {
-		return "", "", AuthResponse{}, autherrors.ErrInvalidRefreshToken
+		return nil, err
 	}
 
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return "", "", AuthResponse{}, autherrors.ErrInvalidToken
+	// IsActive sekarang *bool, jadi aman
+	if user.IsActive == nil || !*user.IsActive {
+		return nil, ErrUserInactive
 	}
 
-	userIDStr, ok := claims["user_id"].(string)
-	if !ok {
-		return "", "", AuthResponse{}, autherrors.ErrInvalidToken
+	if err := bcrypt.CompareHashAndPassword(
+		[]byte(user.PasswordHash),
+		[]byte(req.Password),
+	); err != nil {
+		return nil, ErrInvalidCredentials
 	}
 
-	userID, err := uuid.Parse(userIDStr)
+	roles, err := s.repo.GetUserRoles(ctx, user.ID)
 	if err != nil {
-		return "", "", AuthResponse{}, autherrors.ErrInvalidUserID
+		return nil, err
 	}
 
-	user, err := s.repo.GetByID(ctx, userID)
+	roleCodes := make([]string, 0, len(roles))
+	roleInfos := make([]RoleInfo, 0, len(roles))
+
+	for _, r := range roles {
+		roleCodes = append(roleCodes, r.Code)
+		roleInfos = append(roleInfos, RoleInfo{
+			ID:   r.ID,
+			Code: r.Code,
+			Name: r.Name,
+		})
+	}
+
+	accessToken, err := s.jwtManager.GenerateAccessToken(
+		user.ID,
+		user.Username,
+		user.Email,
+		roleCodes,
+	)
 	if err != nil {
-		return "", "", AuthResponse{}, autherrors.ErrUserNotFound
+		return nil, err
 	}
 
-	newAccessToken, err := s.generateToken(user.ID.String(), user.Role, time.Minute*15)
+	refreshToken, err := s.jwtManager.GenerateRefreshToken(user.ID)
 	if err != nil {
-		return "", "", AuthResponse{}, autherrors.ErrTokenGenerationFailed
+		return nil, err
 	}
 
-	newRefreshToken, err := s.generateToken(user.ID.String(), user.Role, time.Hour*24*7)
-	if err != nil {
-		return "", "", AuthResponse{}, autherrors.ErrTokenGenerationFailed
-	}
+	_ = s.repo.UpdateUserLastLogin(ctx, user.ID)
 
-	return newAccessToken, newRefreshToken, AuthResponse{
-		ID:    user.ID.String(),
-		Email: user.Email,
-		Name:  user.Name,
-		Role:  user.Role,
+	return &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    900,
+		User: UserInfo{
+			ID:       user.ID,
+			Username: user.Username,
+			Email:    user.Email,
+			FullName: user.FullName,
+			Roles:    roleInfos,
+		},
 	}, nil
-}
-
-func (s *Service) GetMe(ctx context.Context, userID string) (*AuthResponse, error) {
-	id, err := uuid.Parse(userID)
-	if err != nil {
-		return nil, autherrors.ErrInvalidUserID
-	}
-
-	u, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return nil, autherrors.ErrUserNotFound
-	}
-
-	return &AuthResponse{
-		ID:    u.ID.String(),
-		Email: u.Email,
-		Name:  u.Name,
-		Role:  u.Role,
-	}, nil
-}
-
-func (s *Service) Register(ctx context.Context, req RegisterRequest) (AuthResponse, error) {
-	hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		return AuthResponse{}, autherrors.ErrTokenGenerationFailed
-	}
-
-	user, err := s.repo.Create(ctx, db.CreateUserParams{
-		Email:    req.Email,
-		Name:     req.Name,
-		Password: string(hashed),
-		Role:     "CUSTOMER",
-	})
-	if err != nil {
-		return AuthResponse{}, autherrors.ErrEmailAlreadyRegistered
-	}
-
-	return AuthResponse{
-		ID:    user.ID.String(),
-		Email: user.Email,
-		Name:  user.Name,
-		Role:  user.Role,
-	}, nil
-}
-
-// reusable token generator
-func (s *Service) generateToken(userID, role string, expiry time.Duration) (string, error) {
-	claims := jwt.MapClaims{
-		"user_id": userID,
-		"role":    role,
-		"exp":     time.Now().Add(expiry).Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 }
 
 ## Service Test
@@ -161,287 +212,244 @@ package auth_test
 import (
 	"context"
 	"errors"
-	"gadget-api/internal/auth"
-	"gadget-api/internal/db"
-	authMock "gadget-api/internal/mock/auth"
 	"testing"
+	"time"
 
-	"github.com/golang/mock/gomock"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/bcrypt"
+
+	"go-mini-erp/internal/auth"
+	"go-mini-erp/internal/auth/mocks"
+	db "go-mini-erp/internal/shared/database/sqlc"
+	"go-mini-erp/internal/shared/util/dbutil"
 )
 
-func TestService_Login(t *testing.T) {
+/*
+JWTManager stub:
+- Tidak pakai gomock (lebih simpel)
+- Fokus test business logic service
+*/
+type jwtManagerStub struct{}
+
+func (j *jwtManagerStub) GenerateAccessToken(
+	userID uuid.UUID,
+	username, email string,
+	roles []string,
+) (string, error) {
+	return "access-token", nil
+}
+
+func (j *jwtManagerStub) GenerateRefreshToken(userID uuid.UUID) (string, error) {
+	return "refresh-token", nil
+}
+
+func (j *jwtManagerStub) ParseRefreshToken(token string) (*auth.Claims, error) {
+	return nil, errors.New("not implemented")
+}
+
+// =======================
+// LOGIN
+// =======================
+
+func TestLogin_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockRepo := authMock.NewMockRepository(ctrl)
-	service := auth.NewService(mockRepo)
+	jwtStub := &jwtManagerStub{}
+	repo := mocks.NewMockRepository(ctrl)
+	service := auth.NewService(repo, nil, jwtStub)
+
 	ctx := context.Background()
+	userID := uuid.New()
+	hashed, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 
-	pw, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	repo.EXPECT().
+		GetUserByUsername(ctx, "testuser").
+		Return(db.GetUserByUsernameRow{
+			ID:           userID,
+			Username:     "testuser",
+			Email:        "test@example.com",
+			PasswordHash: string(hashed),
+			FullName:     "Test User",
+			IsActive:     dbutil.BoolPtr(true),
+		}, nil)
 
-	t.Run("Success Login", func(t *testing.T) {
-		mockRepo.EXPECT().
-			GetByEmail(ctx, "admin").
-			Return(db.User{Email: "admin", Password: string(pw)}, nil)
+	repo.EXPECT().
+		GetUserRoles(ctx, userID).
+		Return([]db.GetUserRolesRow{
+			{ID: uuid.New(), Code: "admin", Name: "Administrator"},
+		}, nil)
 
-		token, refreshToken, resp, err := service.Login(ctx, "admin", "password123")
+	repo.EXPECT().
+		UpdateUserLastLogin(ctx, userID).
+		Return(nil)
 
-		assert.NoError(t, err)
-		assert.NotEmpty(t, token)
-		assert.NotEmpty(t, refreshToken)
-		assert.Equal(t, "admin", resp.Email)
+	result, err := service.Login(ctx, auth.LoginRequest{
+		Email:    "test@example.com",
+		Password: "password123",
 	})
 
-	t.Run("Wrong Password", func(t *testing.T) {
-		mockRepo.EXPECT().
-			GetByEmail(ctx, "admin").
-			Return(db.User{Email: "admin", Password: string(pw)}, nil)
-
-		_, _, _, err := service.Login(ctx, "admin", "wrongpass")
-		assert.Error(t, err)
-	})
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "Bearer", result.TokenType)
+	assert.Equal(t, 900, result.ExpiresIn)
+	assert.Equal(t, "testuser", result.User.Username)
+	assert.Len(t, result.User.Roles, 1)
+	assert.Equal(t, "admin", result.User.Roles[0].Code)
 }
 
-func TestService_Register(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockRepo := authMock.NewMockRepository(ctrl)
-	service := auth.NewService(mockRepo)
-	ctx := context.Background()
-
-	t.Run("Success Register", func(t *testing.T) {
-		req := auth.RegisterRequest{
-			Email:    "user@example.com",
-			Password: "password123",
-		}
-
-		mockRepo.EXPECT().
-			Create(ctx, gomock.Any()).
-			Return(db.CreateUserRow{
-				Email: req.Email,
-				Role:  "CUSTOMER",
-			}, nil)
-
-		resp, err := service.Register(ctx, req)
-
-		assert.NoError(t, err)
-		assert.Equal(t, req.Email, resp.Email)
-		assert.Equal(t, "CUSTOMER", resp.Role)
-	})
-
-	t.Run("Error Register", func(t *testing.T) {
-		req := auth.RegisterRequest{
-			Email:    "user@example.com",
-			Password: "password123",
-		}
-
-		mockRepo.EXPECT().
-			Create(ctx, gomock.Any()).
-			Return(db.CreateUserRow{}, errors.New("duplicate email"))
-
-		_, err := service.Register(ctx, req)
-		assert.Error(t, err)
-	})
-}
-
-## Handler/Controller
+## Handler
 package auth
 
 import (
-	platform "gadget-api/internal/pkg/request"
-	"gadget-api/internal/pkg/response"
-	"log"
+	"errors"
+	"go-mini-erp/internal/shared/middleware"
 	"net/http"
-	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
-type Controller struct {
-	service *Service
+type Handler struct {
+	service Service
 }
 
-func NewController(s *Service) *Controller {
-	return &Controller{service: s}
+func NewHandler(service Service) *Handler {
+	return &Handler{
+		service: service,
+	}
 }
 
-func (ctrl *Controller) Login(c *gin.Context) {
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
+	auth := r.Group("/auth")
+	{
+		auth.POST("/login", h.Login)
+		auth.POST("/register", h.Register)
+		auth.POST("/refresh", h.RefreshToken)
+		auth.POST("/logout", middleware.AuthMiddleware(), h.Logout)
+		auth.GET("/profile", middleware.AuthMiddleware(), h.GetProfile)
+	}
+}
+
+// Login godoc
+// @Summary User login
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body LoginRequest true "Login credentials"
+// @Success 200 {object} LoginResponse
+// @Failure 401 {object} map[string]string
+// @Router /auth/login [post]
+func (h *Handler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		// Response Error Seragam
-		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "Input tidak valid", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	clientHeader := c.GetHeader("X-Client-Type")
-	userAgent := c.GetHeader("User-Agent")
-	clientType := platform.ResolveClientType(clientHeader, userAgent)
-
-	token, refreshToken, userResp, err := ctrl.service.Login(c.Request.Context(), req.Email, req.Password)
+	result, err := h.service.Login(c.Request.Context(), req)
 	if err != nil {
-		// Response Error Seragam
-		response.Error(c, http.StatusUnauthorized, "AUTH_FAILED", "Email atau password salah", nil)
-		return
-	}
-	isProd := os.Getenv("APP_ENV") == "production"
-
-	if platform.IsWebClient(clientType) {
-		// Set access_token cookie
-		http.SetCookie(c.Writer, &http.Cookie{
-			Name:     "access_token",
-			Value:    token,
-			Path:     "/",
-			MaxAge:   86400, // 1 hari
-			HttpOnly: true,
-			Secure:   isProd,
-			SameSite: http.SameSiteLaxMode, // ✅ Explicit SameSite
-		})
-
-		// Set refresh_token cookie
-		http.SetCookie(c.Writer, &http.Cookie{
-			Name:     "refresh_token",
-			Value:    refreshToken,
-			Path:     "/",
-			MaxAge:   3600 * 24 * 7, // 7 hari
-			HttpOnly: true,
-			Secure:   isProd,
-			SameSite: http.SameSiteLaxMode, // ✅ Explicit SameSite
-		})
-	}
-
-	responseData := gin.H{
-		"user":          userResp,
-		"access_token":  token,
-		"refresh_token": refreshToken,
-	}
-
-	response.Success(c, http.StatusOK, responseData, nil)
-}
-
-func (ctrl *Controller) Me(c *gin.Context) {
-	// asumsi middleware sudah set userID di context
-	log.Printf("auth context: %+v\n", c.Keys)
-
-	userID, ok := c.Get("user_id")
-	if !ok {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized", nil)
+		handleServiceError(c, err)
 		return
 	}
 
-	userResp, err := ctrl.service.GetMe(
-		c.Request.Context(),
-		userID.(string),
+	// Set refresh token as httpOnly cookie
+	c.SetCookie(
+		"refresh_token",
+		result.RefreshToken,
+		7*24*60*60, // 7 days
+		"/",
+		"",
+		false, // Set to true in production with HTTPS
+		true,  // httpOnly
 	)
-	if err != nil {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized", nil)
-		return
-	}
 
-	response.Success(c, http.StatusOK, userResp, nil)
+	c.JSON(http.StatusOK, result)
 }
 
-// auth/auth_controller.go
+## Handler Test
+package auth_test
 
-func (ctrl *Controller) Logout(c *gin.Context) {
-	// Ambil isProd dari config
-	isProd := os.Getenv("APP_ENV") == "production" // atau dari config Anda
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
 
-	// Clear access_token
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     "access_token",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   isProd,
-		SameSite: http.SameSiteLaxMode, // ✅ Harus sama dengan login
-	})
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
-	// Clear refresh_token
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   isProd,
-		SameSite: http.SameSiteLaxMode, // ✅ Harus sama dengan login
-	})
+	"go-mini-erp/internal/auth"
+	"go-mini-erp/internal/auth/mocks"
+)
 
-	response.Success(c, http.StatusOK, "Logout success.", nil)
-}
+// Test Login - Success
+func TestLoginHandler_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-func (ctrl *Controller) Register(c *gin.Context) {
-	var req RegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "Input tidak valid", err.Error())
-		return
+	mockService := mocks.NewMockService(ctrl)
+	handler := auth.NewHandler(mockService)
+
+	router := gin.Default()
+	router.POST("/auth/login", handler.Login)
+
+	userID := uuid.New()
+	expectedResponse := &auth.LoginResponse{
+		AccessToken:  "mock-access-token",
+		RefreshToken: "mock-refresh-token",
+		TokenType:    "Bearer",
+		ExpiresIn:    900,
+		User: auth.UserInfo{
+			ID:       userID,
+			Username: "testuser",
+			Email:    "test@example.com",
+			FullName: "Test User",
+			Roles: []auth.RoleInfo{
+				{
+					ID:   uuid.New(),
+					Code: "admin",
+					Name: "Administrator",
+				},
+			},
+		},
 	}
 
-	res, err := ctrl.service.Register(c.Request.Context(), req)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "REGISTER_FAILED", err.Error(), nil)
-		return
+	mockService.EXPECT().
+		Login(gomock.Any(), auth.LoginRequest{
+			Email:    "test@example.com",
+			Password: "password123",
+		}).
+		Return(expectedResponse, nil).
+		Times(1)
+
+	// Create request
+	body := map[string]string{
+		"username": "testuser",
+		"password": "password123",
 	}
+	jsonBody, _ := json.Marshal(body)
+	req, _ := http.NewRequest("POST", "/auth/login", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
 
-	response.Success(c, http.StatusCreated, res, nil)
-}
+	// Execute request
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
 
-func (ctrl *Controller) RefreshToken(c *gin.Context) {
-	// 1. Deteksi Client
-	clientHeader := c.GetHeader("X-Client-Type")
-	userAgent := c.GetHeader("User-Agent")
-	clientType := platform.ResolveClientType(clientHeader, userAgent)
+	// Assert
+	assert.Equal(t, http.StatusOK, w.Code)
 
-	var refreshToken string
-	isWeb := platform.IsWebClient(clientType)
-
-	// 2. Ambil Refresh Token (Cookie vs Body)
-	if isWeb {
-		var err error
-		refreshToken, err = c.Cookie("refresh_token")
-		if err != nil {
-			response.Error(c, http.StatusUnauthorized, "NO_REFRESH_TOKEN", "Missing refresh token", nil)
-			return
-		}
-	} else {
-		var req struct {
-			RefreshToken string `json:"refresh_token" binding:"required"`
-		}
-		if err := c.ShouldBindJSON(&req); err != nil {
-			response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "Refresh token is required", nil)
-			return
-		}
-		refreshToken = req.RefreshToken
-	}
-
-	// 3. Panggil Service untuk Verify & Issue New Tokens
-	// Mengembalikan accessToken, newRefreshToken, userDetail, error
-	newAccess, newRefresh, userResp, err := ctrl.service.RefreshToken(c.Request.Context(), refreshToken)
-	if err != nil {
-		response.Error(c, http.StatusUnauthorized, "INVALID_TOKEN", err.Error(), nil)
-		return
-	}
-
-	isProd := os.Getenv("APP_ENV") == "production"
-
-	// 4. Sinkronisasi Web (Set-Cookie)
-	if isWeb {
-		// Update Access Token di Cookie
-		c.SetCookie("access_token", newAccess, 15*60, "/", "", isProd, true)
-		// Update Refresh Token di Cookie
-		c.SetCookie("refresh_token", newRefresh, 3600*24*7, "/", "", isProd, true)
-	}
-
-	// 5. Response Success (Tetap kirim body untuk sinkronisasi state di frontend)
-	responseData := gin.H{
-		"user":          userResp,
-		"access_token":  newAccess,
-		"refresh_token": newRefresh,
-	}
-
-	response.Success(c, http.StatusOK, responseData, nil)
+	var response auth.LoginResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Equal(t, "testuser", response.User.Username)
+	assert.NotEmpty(t, response.AccessToken)
 }

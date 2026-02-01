@@ -307,3 +307,63 @@ func TestGetProfile_UserNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, auth.ErrUserNotFound)
 	assert.Nil(t, result)
 }
+
+func TestAssignRoleToUser_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	repo := mocks.NewMockRepository(ctrl)
+	service := auth.NewService(repo, nil, nil)
+
+	ctx := context.Background()
+	userID := uuid.New()
+	roleID := uuid.New()
+	assignedBy := uuid.New()
+
+	// mock get user by id
+	repo.EXPECT().GetUserByID(ctx, userID).Return(db.GetUserByIDRow{
+		ID:       userID,
+		Username: "user1",
+		Email:    "user1@example.com",
+		FullName: "User One",
+		IsActive: dbutil.BoolPtr(true),
+	}, nil)
+
+	// mock assign role
+	repo.EXPECT().AssignRoleToUser(ctx, db.AssignRoleToUserParams{
+		UserID:     userID,
+		RoleID:     roleID,
+		AssignedBy: dbutil.UUIDPtrToPgUUID(&assignedBy),
+	}).Return(db.AssignRoleToUserRow{
+		ID:         uuid.New(),
+		UserID:     userID,
+		RoleID:     roleID,
+		AssignedAt: dbutil.PgTime(time.Now()),
+	}, nil)
+
+	resp, err := service.AssignRoleToUser(ctx, userID, roleID, assignedBy)
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, userID, resp.UserID)
+	assert.Equal(t, roleID, resp.RoleID)
+}
+
+func TestAssignRoleToUser_UserNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	repo := mocks.NewMockRepository(ctrl)
+	service := auth.NewService(repo, nil, nil)
+
+	ctx := context.Background()
+	userID := uuid.New()
+	roleID := uuid.New()
+	assignedBy := uuid.New()
+
+	repo.EXPECT().GetUserByID(ctx, userID).Return(db.GetUserByIDRow{}, auth.ErrUserNotFound)
+
+	resp, err := service.AssignRoleToUser(ctx, userID, roleID, assignedBy)
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, auth.ErrUserNotFound)
+}

@@ -186,6 +186,82 @@ func (h *Handler) Logout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
 
+// GET /users/:id/roles
+func (h *Handler) GetUserRoles(c *gin.Context) {
+	userIDParam := c.Param("id")
+	userID, err := uuid.Parse(userIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	roles, err := h.service.GetUserRoles(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, roles)
+}
+
+// POST /users/:id/roles
+type AssignRoleRequest struct {
+	RoleID     string `json:"roleId" binding:"required,uuid"`
+	AssignedBy string `json:"assignedBy" binding:"required,uuid"`
+}
+
+func (h *Handler) AssignRoleToUser(c *gin.Context) {
+	userIDParam := c.Param("id")
+	userID, err := uuid.Parse(userIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	var req AssignRoleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	roleID, _ := uuid.Parse(req.RoleID)
+	assignedBy, _ := uuid.Parse(req.AssignedBy)
+
+	res, err := h.service.AssignRoleToUser(c.Request.Context(), userID, roleID, assignedBy)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, res)
+}
+
+// DELETE /users/:id/roles/:roleId
+func (h *Handler) RemoveRoleFromUser(c *gin.Context) {
+	userIDParam := c.Param("id")
+	roleIDParam := c.Param("roleId")
+
+	userID, err := uuid.Parse(userIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	roleID, err := uuid.Parse(roleIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role id"})
+		return
+	}
+
+	err = h.service.RemoveRoleFromUser(c.Request.Context(), userID, roleID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 // handleServiceError maps service errors to HTTP status codes
 func handleServiceError(c *gin.Context, err error) {
 	switch {
