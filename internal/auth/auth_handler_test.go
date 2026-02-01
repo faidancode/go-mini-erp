@@ -52,7 +52,7 @@ func TestLoginHandler_Success(t *testing.T) {
 
 	mockService.EXPECT().
 		Login(gomock.Any(), auth.LoginRequest{
-			Username: "testuser",
+			Email:    "test@example.com",
 			Password: "password123",
 		}).
 		Return(expectedResponse, nil).
@@ -95,7 +95,7 @@ func TestLoginHandler_InvalidCredentials(t *testing.T) {
 
 	mockService.EXPECT().
 		Login(gomock.Any(), auth.LoginRequest{
-			Username: "wronguser",
+			Email:    "test@example.com",
 			Password: "wrongpass",
 		}).
 		Return(nil, auth.ErrInvalidCredentials).

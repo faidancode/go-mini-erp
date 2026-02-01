@@ -45,7 +45,7 @@ func NewService(
 // ----------------------------------------------------
 
 func (s *service) Login(ctx context.Context, req LoginRequest) (*LoginResponse, error) {
-	user, err := s.repo.GetUserByUsername(ctx, req.Username)
+	user, err := s.repo.GetUserByEmail(ctx, req.Email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrInvalidCredentials

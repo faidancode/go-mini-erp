@@ -80,7 +80,7 @@ func TestLogin_Success(t *testing.T) {
 		Return(nil)
 
 	result, err := service.Login(ctx, auth.LoginRequest{
-		Username: "testuser",
+		Email:    "test@example.com",
 		Password: "password123",
 	})
 
@@ -106,7 +106,7 @@ func TestLogin_InvalidUsername(t *testing.T) {
 		Return(db.GetUserByUsernameRow{}, pgx.ErrNoRows)
 
 	result, err := service.Login(context.Background(), auth.LoginRequest{
-		Username: "wronguser",
+		Email:    "test@example.com",
 		Password: "password",
 	})
 
@@ -134,7 +134,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 		}, nil)
 
 	result, err := service.Login(context.Background(), auth.LoginRequest{
-		Username: "testuser",
+		Email:    "test@example.com",
 		Password: "wrong",
 	})
 
@@ -162,7 +162,7 @@ func TestLogin_UserInactive(t *testing.T) {
 		}, nil)
 
 	result, err := service.Login(context.Background(), auth.LoginRequest{
-		Username: "testuser",
+		Email:    "test@example.com",
 		Password: "password",
 	})
 
