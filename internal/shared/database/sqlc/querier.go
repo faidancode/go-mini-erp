@@ -25,6 +25,7 @@ type Querier interface {
 	CreatePurchaseOrderLine(ctx context.Context, arg CreatePurchaseOrderLineParams) (CreatePurchaseOrderLineRow, error)
 	CreateQuotation(ctx context.Context, arg CreateQuotationParams) (CreateQuotationRow, error)
 	CreateQuotationLine(ctx context.Context, arg CreateQuotationLineParams) (CreateQuotationLineRow, error)
+	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
 	CreateSalesOrder(ctx context.Context, arg CreateSalesOrderParams) (CreateSalesOrderRow, error)
 	CreateSalesOrderLine(ctx context.Context, arg CreateSalesOrderLineParams) (CreateSalesOrderLineRow, error)
 	CreateStockAdjustment(ctx context.Context, arg CreateStockAdjustmentParams) (CreateStockAdjustmentRow, error)
@@ -35,6 +36,7 @@ type Querier interface {
 	CreateSupplierBill(ctx context.Context, arg CreateSupplierBillParams) (CreateSupplierBillRow, error)
 	CreateUnitOfMeasure(ctx context.Context, arg CreateUnitOfMeasureParams) (CreateUnitOfMeasureRow, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
+	DeleteRole(ctx context.Context, id uuid.UUID) error
 	GetAccountsPayableSummary(ctx context.Context, dollar_1 uuid.UUID) ([]GetAccountsPayableSummaryRow, error)
 	GetAccountsReceivableSummary(ctx context.Context, dollar_1 uuid.UUID) ([]GetAccountsReceivableSummaryRow, error)
 	GetAgingReceivables(ctx context.Context) ([]GetAgingReceivablesRow, error)
@@ -52,6 +54,8 @@ type Querier interface {
 	GetPurchaseOrderLines(ctx context.Context, poID uuid.UUID) ([]GetPurchaseOrderLinesRow, error)
 	GetQuotationByID(ctx context.Context, id uuid.UUID) (GetQuotationByIDRow, error)
 	GetQuotationLines(ctx context.Context, quoteID uuid.UUID) ([]GetQuotationLinesRow, error)
+	GetRoleByCode(ctx context.Context, code string) (Role, error)
+	GetRoleByID(ctx context.Context, id uuid.UUID) (Role, error)
 	GetSalesOrderByID(ctx context.Context, id uuid.UUID) (GetSalesOrderByIDRow, error)
 	GetSalesOrderLines(ctx context.Context, soID uuid.UUID) ([]GetSalesOrderLinesRow, error)
 	GetStockAdjustmentByID(ctx context.Context, id uuid.UUID) (GetStockAdjustmentByIDRow, error)
@@ -74,6 +78,7 @@ type Querier interface {
 	ListPayments(ctx context.Context, arg ListPaymentsParams) ([]ListPaymentsRow, error)
 	ListPurchaseOrders(ctx context.Context, arg ListPurchaseOrdersParams) ([]ListPurchaseOrdersRow, error)
 	ListQuotations(ctx context.Context, arg ListQuotationsParams) ([]ListQuotationsRow, error)
+	ListRoles(ctx context.Context) ([]Role, error)
 	ListSalesOrders(ctx context.Context, arg ListSalesOrdersParams) ([]ListSalesOrdersRow, error)
 	ListStockAdjustments(ctx context.Context, arg ListStockAdjustmentsParams) ([]ListStockAdjustmentsRow, error)
 	ListStockBalances(ctx context.Context, arg ListStockBalancesParams) ([]ListStockBalancesRow, error)
@@ -86,6 +91,8 @@ type Querier interface {
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) error
 	UpdatePurchaseOrderStatus(ctx context.Context, arg UpdatePurchaseOrderStatusParams) error
 	UpdateQuotationStatus(ctx context.Context, arg UpdateQuotationStatusParams) error
+	UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, error)
+	UpdateRoleStatus(ctx context.Context, arg UpdateRoleStatusParams) error
 	UpdateSOLineDeliveredQty(ctx context.Context, arg UpdateSOLineDeliveredQtyParams) error
 	UpdateSalesOrderStatus(ctx context.Context, arg UpdateSalesOrderStatusParams) error
 	UpdateStockAdjustmentStatus(ctx context.Context, arg UpdateStockAdjustmentStatusParams) error
