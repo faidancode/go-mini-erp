@@ -13,9 +13,9 @@ type CreateRoleRequest struct {
 }
 
 type UpdateRoleRequest struct {
-	Name        string `json:"name" binding:"required,min=3,max=100"`
-	Description string `json:"description"`
-	IsActive    *bool  `json:"isActive" binding:"required"`
+	Name        string  `json:"name" binding:"required,min=3,max=100"`
+	Description *string `json:"description"`
+	IsActive    *bool   `json:"isActive" binding:"required"`
 }
 
 type RoleResponse struct {

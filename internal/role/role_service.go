@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	db "go-mini-erp/internal/shared/database/sqlc"
+	"go-mini-erp/internal/shared/util/dbutil"
 
 	"github.com/google/uuid"
 )
@@ -50,9 +51,9 @@ func (s *service) CreateRole(ctx context.Context, req CreateRoleRequest) (*RoleR
 		Code:        roleRow.Code,
 		Name:        roleRow.Name,
 		Description: roleRow.Description,
-		IsActive:    roleRow.IsActive,
-		CreatedAt:   roleRow.CreatedAt,
-		UpdatedAt:   roleRow.UpdatedAt,
+		IsActive:    dbutil.BoolPtrValue(roleRow.IsActive, false),
+		CreatedAt:   dbutil.PgTimeValue(roleRow.CreatedAt),
+		UpdatedAt:   dbutil.PgTimeValue(roleRow.UpdatedAt),
 	}, nil
 }
 
@@ -67,9 +68,9 @@ func (s *service) GetRoleByID(ctx context.Context, id uuid.UUID) (*RoleResponse,
 		Code:        role.Code,
 		Name:        role.Name,
 		Description: role.Description,
-		IsActive:    role.IsActive,
-		CreatedAt:   role.CreatedAt,
-		UpdatedAt:   role.UpdatedAt,
+		IsActive:    dbutil.BoolPtrValue(role.IsActive, false),
+		CreatedAt:   dbutil.PgTimeValue(role.CreatedAt),
+		UpdatedAt:   dbutil.PgTimeValue(role.UpdatedAt),
 	}, nil
 }
 
@@ -86,27 +87,33 @@ func (s *service) ListRoles(ctx context.Context) ([]RoleResponse, error) {
 			Code:        r.Code,
 			Name:        r.Name,
 			Description: r.Description,
-			IsActive:    r.IsActive,
-			CreatedAt:   r.CreatedAt,
-			UpdatedAt:   r.UpdatedAt,
+			IsActive:    dbutil.BoolPtrValue(r.IsActive, false),
+			CreatedAt:   dbutil.PgTimeValue(r.CreatedAt),
+			UpdatedAt:   dbutil.PgTimeValue(r.UpdatedAt),
 		})
 	}
 
 	return result, nil
 }
 
-func (s *service) UpdateRole(ctx context.Context, id uuid.UUID, req UpdateRoleRequest) error {
-	_, err := s.repo.GetRoleByID(ctx, id)
-	if err != nil {
+func (s *service) UpdateRole(
+	ctx context.Context,
+	id uuid.UUID,
+	req UpdateRoleRequest,
+) error {
+
+	// ensure exists
+	if _, err := s.repo.GetRoleByID(ctx, id); err != nil {
 		return err
 	}
 
-	return s.repo.UpdateRole(ctx, db.UpdateRoleParams{
+	_, err := s.repo.UpdateRole(ctx, db.UpdateRoleParams{
 		ID:          id,
 		Name:        req.Name,
 		Description: req.Description,
 		IsActive:    req.IsActive,
 	})
+	return err
 }
 
 func (s *service) DeleteRole(ctx context.Context, id uuid.UUID) error {

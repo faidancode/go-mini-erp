@@ -200,7 +200,7 @@ func TestRegister_Success(t *testing.T) {
 			Email:     "new@example.com",
 			FullName:  "New User",
 			IsActive:  dbutil.BoolPtr(true),
-			CreatedAt: dbutil.PgTime(time.Now()),
+			CreatedAt: dbutil.TimeToPgTime(time.Now()),
 		}, nil)
 
 	result, err := service.Register(context.Background(), auth.RegisterRequest{
@@ -258,7 +258,7 @@ func TestGetProfile_Success(t *testing.T) {
 			Email:     "test@example.com",
 			FullName:  "Test User",
 			IsActive:  dbutil.BoolPtr(true),
-			CreatedAt: dbutil.PgTime(time.Now()),
+			CreatedAt: dbutil.TimeToPgTime(time.Now()),
 		}, nil)
 
 	repo.EXPECT().
@@ -338,7 +338,7 @@ func TestAssignRoleToUser_Success(t *testing.T) {
 		ID:         uuid.New(),
 		UserID:     userID,
 		RoleID:     roleID,
-		AssignedAt: dbutil.PgTime(time.Now()),
+		AssignedAt: dbutil.TimeToPgTime(time.Now()),
 	}, nil)
 
 	resp, err := service.AssignRoleToUser(ctx, userID, roleID, assignedBy)
