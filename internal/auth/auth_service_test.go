@@ -170,10 +170,6 @@ func TestLogin_UserInactive(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-// =======================
-// REGISTER
-// =======================
-
 func TestRegister_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -236,10 +232,6 @@ func TestRegister_UsernameExists(t *testing.T) {
 	assert.ErrorIs(t, err, auth.ErrUsernameExists)
 	assert.Nil(t, result)
 }
-
-// =======================
-// PROFILE
-// =======================
 
 func TestGetProfile_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)

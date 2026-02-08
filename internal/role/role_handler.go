@@ -15,17 +15,6 @@ func NewHandler(service Service) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
-	routes := r.Group("/roles")
-	{
-		routes.POST("", h.CreateRole)
-		routes.GET("", h.ListRoles)
-		routes.GET("/:id", h.GetRoleByID)
-		routes.PUT("/:id", h.UpdateRole)
-		routes.DELETE("/:id", h.DeleteRole)
-	}
-}
-
 func (h *Handler) CreateRole(c *gin.Context) {
 	var req CreateRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

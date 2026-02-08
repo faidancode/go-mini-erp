@@ -45,10 +45,6 @@ func NewService(
 	}
 }
 
-// ----------------------------------------------------
-// Login
-// ----------------------------------------------------
-
 func (s *service) Login(ctx context.Context, req LoginRequest) (*LoginResponse, error) {
 	user, err := s.repo.GetUserByEmail(ctx, req.Email)
 	if err != nil {
@@ -119,10 +115,6 @@ func (s *service) Login(ctx context.Context, req LoginRequest) (*LoginResponse, 
 	}, nil
 }
 
-// ----------------------------------------------------
-// Register
-// ----------------------------------------------------
-
 func (s *service) Register(ctx context.Context, req RegisterRequest) (*RegisterResponse, error) {
 	if exists, _ := s.repo.CheckUsernameExists(ctx, req.Username); exists {
 		return nil, ErrUsernameExists
@@ -186,9 +178,6 @@ func (s *service) AssignRoleToUser(ctx context.Context, userID, roleID, assigned
 		return nil, ErrUserNotFound
 	}
 
-	// cek apakah role exist dan aktif - kamu bisa tambahkan method repo GetRoleByID jika perlu
-	// untuk sekarang anggap role valid
-
 	res, err := s.repo.AssignRoleToUser(ctx, dbgen.AssignRoleToUserParams{
 		UserID:     userID,
 		RoleID:     roleID,
@@ -210,10 +199,6 @@ func (s *service) RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UU
 	err := s.repo.RemoveRoleFromUser(ctx, userID, roleID)
 	return err
 }
-
-// ----------------------------------------------------
-// Refresh Token
-// ----------------------------------------------------
 
 func (s *service) RefreshToken(ctx context.Context, refreshToken string) (*TokenResponse, error) {
 	claims, err := s.jwtManager.ParseRefreshToken(refreshToken)
@@ -267,10 +252,6 @@ func (s *service) RefreshToken(ctx context.Context, refreshToken string) (*Token
 		ExpiresIn:    900,
 	}, nil
 }
-
-// ----------------------------------------------------
-// Get Profile
-// ----------------------------------------------------
 
 func (s *service) GetProfile(ctx context.Context, userID uuid.UUID) (*UserProfile, error) {
 	user, err := s.repo.GetUserByID(ctx, userID)
@@ -326,18 +307,10 @@ func (s *service) GetProfile(ctx context.Context, userID uuid.UUID) (*UserProfil
 	}, nil
 }
 
-// ----------------------------------------------------
-// Logout
-// ----------------------------------------------------
-
 func (s *service) Logout(ctx context.Context, userID uuid.UUID) error {
-	// Token blacklist / revoke bisa ditaruh di sini
+	// Token blacklist / revoke
 	return nil
 }
-
-// ----------------------------------------------------
-// Helpers (1–3 baris, sesuai instruksi)
-// ----------------------------------------------------
 
 func textToPtr(t *string) *string {
 	if t == nil || *t == "" {
